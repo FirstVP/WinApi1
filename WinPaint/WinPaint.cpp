@@ -31,6 +31,8 @@ int x = 0;
 int y = 0;
 int xPencil = 0;
 int yPencil = 0;
+int xPrint = 0;
+int yPrint = 0;
 
 
 
@@ -123,8 +125,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 void InitializeWindow()
 {
-	//CWindowConfig::width = 1000;
-    //CWindowConfig::hight = 500;
 	isDrawing = false;
 	isPrinting = 0;
 	isMoving = false;
@@ -158,13 +158,13 @@ int Print(int x, int y, int a, int b)
 
 	StartPage(hPrinter);
 
-	StretchBlt(hPrinter, 0, 0, a * 10, b * 10, secondMemory, x, y, abs(a-x), abs(b-y), SRCCOPY);
+	StretchBlt(hPrinter, 0, 0, a * 2, b * 2, secondMemory, x, y, abs(a-x), abs(b-y), SRCCOPY);
 
 	EndPage(hPrinter);
 
 	EndDoc(hPrinter);
 	DeleteDC(hPrinter);
-
+	isPrinting = 0;
 	return 0;
 }
 
@@ -292,7 +292,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				OpenColorDialog(hWnd);
 				break;
 			case IDM_PRINT:
-				isPrinting++;			
+				isPencil = false;
+				isPrinting = 1;			
 				break;
             case IDM_ABOUT:
                 DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
@@ -314,12 +315,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			SelectObject(memory, GetStockObject(HOLLOW_BRUSH));
 			SelectObject(memory, printPen);
 			BitBlt(memory, 0, 0, CWindowConfig::width, CWindowConfig::hight, secondMemory, 0, 0, SRCCOPY);
-			int a = 0;
-			int b = 0;
+			int a = 0; 
+			int b = 0; 
 			a = LOWORD(lParam);
 			b = HIWORD(lParam);
-			if ((a > x) && (b > y))
-			Rectangle(memory, x, y, a, b);
+			if ((a > xPrint) && (b > yPrint))
+			Rectangle(memory, xPrint, yPrint, a, b);
 			InvalidateRect(hWnd, 0, FALSE);
 			UpdateWindow(hWnd);
 		}		
@@ -357,33 +358,44 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	break;
 	case WM_LBUTTONDOWN:
 	{	
+		if (isPrinting != 2) BitBlt(secondMemory, 0, 0, CWindowConfig::width, CWindowConfig::hight, memory, 0, 0, SRCCOPY);
 		SelectObject(memory, CPaintConfig::pen);
 		SelectObject(memory, CPaintConfig::brush);
 		x = LOWORD(lParam);
-		y = HIWORD(lParam);
-		if (isPrinting == 1)
-			isPrinting++;		
-			/*SelectObject(memory, GetStockObject(HOLLOW_BRUSH));*/
-		isDrawing = true;
-		BitBlt(secondMemory, 0, 0, CWindowConfig::width, CWindowConfig::hight, memory, 0, 0, SRCCOPY);		
+		y = HIWORD(lParam);		
+		if (isPrinting > 0)
+		{
+			if (isPrinting == 1)
+			{
+				isPrinting = 2;
+				xPrint = x;
+				yPrint = y;
+			}				
+		}
+		else
+		{			
+			isDrawing = true;
+		}		
 	}
 	break;
 	case WM_LBUTTONUP:
 	{
 		int a = LOWORD(lParam);
 		int b = HIWORD(lParam);
-		if (isPencil)
+		if (isPencil > 0)
 		{
 			xPencil = 0;
 			yPencil = 0;
-		}
-		if (isPrinting)
-		{
-			isPrinting = 0;		
-			BitBlt(memory, 0, 0, CWindowConfig::width, CWindowConfig::hight, secondMemory, 0, 0, SRCCOPY);
 			InvalidateRect(hWnd, 0, FALSE);
 			UpdateWindow(hWnd);
-			Print(x, y, a, b);
+		}
+		if (isPrinting == 2)
+		{					
+			isPrinting = 3;
+			BitBlt(memory, 0, 0, CWindowConfig::width, CWindowConfig::hight, secondMemory, 0, 0, SRCCOPY);			
+			Print(xPrint, yPrint, a, b);
+			InvalidateRect(hWnd, 0, FALSE);
+			UpdateWindow(hWnd);			
 		}			
 		else
 		if (isDrawing)
