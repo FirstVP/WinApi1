@@ -10,6 +10,16 @@ CWindowConfig::CWindowConfig()
 {
 }
 
+bool CWindowConfig::IsScalingPossible(int mouseDirection)
+{
+	bool result = true;
+	if ((mouseDirection < 0) && ((movingPoint.x + movingPoint.y) != 0) && (CWindowConfig::scale <= 1))
+		result = false;
+	return result;
+}
+
+
+
 bool CWindowConfig::IsMovingPossible()
 {
 	bool result = true;

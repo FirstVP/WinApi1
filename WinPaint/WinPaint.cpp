@@ -24,6 +24,7 @@ HDC memory, secondMemory;
 HBITMAP memoryBitmap, secondMemoryBitmap;
 bool isDrawing;
 char isPrinting;
+char isPolygon;
 bool isMoving;
 bool isScaling;
 bool isPencil;
@@ -34,6 +35,8 @@ int xPencil = 0;
 int yPencil = 0;
 int xPrint = 0;
 int yPrint = 0;
+int xPolygon = 0;
+int yPolygon = 0;
 
 
 
@@ -97,7 +100,10 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.hInstance      = hInstance;
     wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_WINPAINT));
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
+	//HBRUSH hb = ::CreateSolidBrush(RGB(222, 231, 249));
+	//wcex.hbrBackground = hb;
     wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
+	wcex.hbrBackground = (HBRUSH)CreateSolidBrush(RGB(0, 128, 256));
     wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_WINPAINT);
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
@@ -130,9 +136,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 void InitializeWindow(HWND hWnd)
 {
-	//SetWindowPos(hWnd, HWND_TOP, 0, 0, CWindowConfig::width, CWindowConfig::hight, SWP_SHOWWINDOW);
 	isDrawing = false;
 	isPrinting = 0;
+	isPolygon = 0;
 	isMoving = false;
 	isScaling = false;
 	isPencil = false;
@@ -164,7 +170,7 @@ int Print(int x, int y, int a, int b)
 
 	StartPage(hPrinter);
 
-	StretchBlt(hPrinter, 0, 0, a * 2, b * 2, secondMemory, x, y, abs(a-x), abs(b-y), SRCCOPY);
+	StretchBlt(hPrinter, 30, 30, a * 2, b * 2, secondMemory, x, y, abs(a-x), abs(b-y), SRCCOPY);
 
 	EndPage(hPrinter);
 
@@ -216,11 +222,20 @@ int GetIntSign(int number)
 	return result;
 }
 
-void SaveMetafile(HWND hWnd, LPCWSTR szFileName)
+void ClearDC(HDC hdc, int border)
 {
-	
-	
-	
+	//border *= 0;
+	int countedBorder = border*CWindowConfig::scale;
+	if (countedBorder < 1) countedBorder = 1;
+	HBRUSH brush = CreateSolidBrush(RGB(255, 255, 255));
+	HPEN pen = CreatePen(PS_SOLID, border*CWindowConfig::scale, RGB(0, 0, 0));
+	SelectObject(hdc, pen);	
+	SelectObject(hdc, brush);
+	Rectangle(hdc, 0, 0, CWindowConfig::width*CWindowConfig::scale, CWindowConfig::hight*CWindowConfig::scale);
+}
+
+void SaveMetafile(HWND hWnd, LPCWSTR szFileName)
+{	
 	DeleteEnhMetaFile(CloseEnhMetaFile(CMetafileManager::mdc));
 	HENHMETAFILE metafile = GetEnhMetaFile(TEMPORARY_METAFILE_PATH);
 	CopyEnhMetaFile(metafile, szFileName);
@@ -235,47 +250,7 @@ void SaveMetafile(HWND hWnd, LPCWSTR szFileName)
 	rect.bottom *= CWindowConfig::scale;
 	rect.right *= CWindowConfig::scale;
 	PlayEnhMetaFile(CMetafileManager::mdc, restore, &rect);
-
-	/*CloseEnhMetaFile(CMetafileManager::mdc);
-	DeleteObject(CMetafileManager::mdc);
-	HENHMETAFILE metafile = GetEnhMetaFile(TEMPORARY_METAFILE_PATH);
-	CopyEnhMetaFile(metafile, szFileName);
-	DeleteEnhMetaFile(metafile);
-	DeleteFile(TEMPORARY_METAFILE_PATH);
-
-	CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd));
-	HENHMETAFILE restore = GetEnhMetaFile(szFileName);
-	RECT rect;
-	GetClientRect(hWnd, &rect);
-	rect.bottom *= CWindowConfig::scale;
-	rect.right *= CWindowConfig::scale;*/
-
-
-	//PlayEnhMetaFile(CMetafileManager::mdc, restore, &rect);
-
-	/*CloseEnhMetaFile(CMetafileManager::mdc);
-	if (CMetafileManager::mdc == NULL)
-		MessageBox(NULL, L"Lol", NULL, MB_OK);
-	HENHMETAFILE metafile = GetEnhMetaFile(TEMPORARY_METAFILE_PATH);
-	CopyEnhMetaFile(metafile, szFileName);
-	DeleteEnhMetaFile(metafile);
-	CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd));
-	if (CMetafileManager::mdc == NULL)
-		MessageBox(NULL,L"Lal", NULL, MB_OK);*/	
-		
-	//	CMetafileManager::mdc = NULL;
-
-	//CMetafileManager::CreateMetafileContext(hWnd, memory);
-	//if (CMetafileManager::mdc == NULL)
-	//	MessageBox(NULL, L"Lal", NULL, MB_OK);
-	//metafile = GetEnhMetaFile(szFileName);
-
-	//RECT rect;
-	//GetClientRect(hWnd, &rect);
-	//rect.bottom *= CWindowConfig::scale;
-	//rect.right *= CWindowConfig::scale;
-
-	//PlayEnhMetaFile(CMetafileManager::mdc, metafile, &rect);
+	DeleteEnhMetaFile(restore);
 }
 
 void ShowSaveDialog(HWND hWnd)
@@ -301,16 +276,70 @@ void ShowSaveDialog(HWND hWnd)
 	}
 }
 
+void OpenMetafile(HWND hWnd, LPCWSTR szFileName)
+{
+	DeleteEnhMetaFile(CloseEnhMetaFile(CMetafileManager::mdc));
+	DeleteObject(CMetafileManager::mdc);
+	DeleteFile(TEMPORARY_METAFILE_PATH);
+
+	CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd));
+	HENHMETAFILE restore = GetEnhMetaFile(szFileName);
+	RECT rect;
+	GetClientRect(hWnd, &rect);
+	rect.bottom *= CWindowConfig::scale;
+	rect.right *= CWindowConfig::scale;
+	CWindowConfig::movingPoint.x = 0;
+	CWindowConfig::movingPoint.y = 0;
+	SetViewportOrgEx(memory, CWindowConfig::movingPoint.x, CWindowConfig::movingPoint.y, NULL);
+	SetViewportOrgEx(CMetafileManager::mdc, CWindowConfig::movingPoint.x, CWindowConfig::movingPoint.y, NULL);
+	
+	PlayEnhMetaFile(CMetafileManager::mdc, restore, &rect);
+	ClearDC(memory, 5);
+	PlayEnhMetaFile(memory, restore, &rect);
+	InvalidateRect(hWnd, 0, FALSE);
+	UpdateWindow(hWnd);
+	DeleteEnhMetaFile(restore);
+}
+
+void ShowOpenDialog(HWND hWnd)
+{
+	OPENFILENAME ofn;
+	WCHAR szFileName[MAX_PATH] = L"";
+	ZeroMemory(&ofn, sizeof(ofn));
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = hWnd;
+	ofn.lpstrFilter = L"Enhanced metafile (*.emf)\0";
+	ofn.lpstrFile = szFileName;
+	ofn.nMaxFile = MAX_PATH;
+	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+	ofn.lpstrDefExt = L"emf";
+
+	if (GetOpenFileName(&ofn))
+	{
+		OpenMetafile(hWnd, szFileName);
+	}
+	else
+	{
+		MessageBox(hWnd, L"Cancelled", L"Open file", MB_OK);
+	}
+}
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
+	case WM_ERASEBKGND:
+		{		
+		SetBkColor((HDC)wParam, 0x000000ff); 
+		break;
+		}
 	case WM_CREATE:
 	    {
 			InitializeWindow(hWnd);
 			CreateNewLayer(hWnd, &memory, &memoryBitmap, CWindowConfig::width, CWindowConfig::hight);
 			CreateNewLayer(hWnd, &secondMemory, &secondMemoryBitmap, CWindowConfig::width, CWindowConfig::hight);
 			CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd));
+			CPaintConfig::ChooseThickness(THIN_LINE);
 		}
 		break;
 	case WM_CHAR:
@@ -332,20 +361,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	break;
 	case WM_LBUTTONDBLCLK :
 		{	
-		/*RECT rect;
-		GetClientRect(hWnd, &rect);
-		HDC hdcMeta = CreateEnhMetaFile(secondMemory,
-			L"D:\\Metafile\\file.emf",
-			&rect, NULL);
-		Rectangle(hdcMeta, 0, 0, 10, 10);
-		CloseEnhMetaFile(hdcMeta);*/
 		CloseEnhMetaFile(CMetafileManager::mdc);
-		//DeleteEnhMetaFile(CloseEnhMetaFile(CMetafileManager::mdc));
-		//DeleteObject(CMetafileManager::mdc);
-		//DeleteFile(TEMPORARY_METAFILE_PATH);
-		//CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd));
-		//RECT rect;
-		//GetClientRect(hWnd, &rect);
 		//wchar_t buffer[256];
 		//wsprintfW(buffer, L"%d", rect.right);
 		//MessageBoxW(nullptr, buffer, buffer, MB_OK);
@@ -372,32 +388,54 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				ShowSaveDialog(hWnd);
 				break;
 			}         
+			case IDM_OPEN:
+			{
+				ShowOpenDialog(hWnd);
+				break;
+			}
+			case ID_TOOLS_POLYGON:
+			{
+				isPrinting = 0;
+				isPolygon = 1;
+				isPencil = false;
+				break;
+			}
 			case ID_TOOLS_PENCIL:
 			{
+				isPrinting = 0;
+				isPolygon = 0;
 				isPencil = true;
 				break;
 			}			
 			case ID_TOOLS_LINE:
 			{
 				CPaintConfig::ChoosePrimitiveDrawer(new CLineDrawer());
+				isPrinting = 0;
+				isPolygon = 0;
 				isPencil = false;
 				break;
 			}							
 			case ID_TOOLS_TRIANGLE:
 			{
 				CPaintConfig::ChoosePrimitiveDrawer(new CTriangleDrawer());
+				isPrinting = 0;
+				isPolygon = 0;
 				isPencil = false;
 				break;
 			}								
 			case ID_TOOLS_ELLIPSE:
 			{
 				CPaintConfig::ChoosePrimitiveDrawer(new CEllipseDrawer());
+				isPrinting = 0;
+				isPolygon = 0;
 				isPencil = false;
 				break;
 			}						
 			case ID_TOOLS_RECTANGLE:
 			{
 				CPaintConfig::ChoosePrimitiveDrawer(new CRectangleDrawer());
+				isPrinting = 0;
+				isPolygon = 0;
 				isPencil = false;
 				break;
 			}								
@@ -445,25 +483,39 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			Rectangle(memory, xPrint, yPrint, a, b);
 			InvalidateRect(hWnd, 0, FALSE);
 			UpdateWindow(hWnd);
-		}		
+		}	
+		if (2 == isPolygon)
+		{
+			isDrawing = false;
+			BitBlt(memory, 0, 0, CWindowConfig::width, CWindowConfig::hight, secondMemory, 0, 0, SRCCOPY);
+			int a = 0;
+			int b = 0;
+			a = LOWORD(lParam);
+			b = HIWORD(lParam);
+			CLineDrawer lineDrawer;
+			lineDrawer.Draw(memory, xPolygon, yPolygon, a, b);
+			lineDrawer.Draw(CMetafileManager::mdc, xPolygon, yPolygon, a, b);
+			InvalidateRect(hWnd, 0, FALSE);
+			UpdateWindow(hWnd);
+		}
 		if ((isPencil) && ((GetKeyState(VK_LBUTTON) & 0x100) != 0))
 		{
 			isDrawing = false;
 			int a = LOWORD(lParam);
 			int b = HIWORD(lParam);
-			CLineDrawer* lineDrawer = new CLineDrawer();
+			CLineDrawer lineDrawer;
 			HPEN pen = CreatePen(PS_SOLID, 5, CPaintConfig::color);
 			SelectObject(memory, pen);
 			SelectObject(CMetafileManager::mdc, pen);
 			if (!((xPencil == 0) && (yPencil == 0)))
 			{
-				lineDrawer->Draw(memory, xPencil, yPencil, a, b);
-				lineDrawer->Draw(CMetafileManager::mdc, xPencil, yPencil, a, b);
+				lineDrawer.Draw(memory, xPencil, yPencil, a, b);
+				lineDrawer.Draw(CMetafileManager::mdc, xPencil, yPencil, a, b);
 			}				
 			else
 			{
-				lineDrawer->Draw(memory, a, b, a + 1, b + 1);
-				lineDrawer->Draw(CMetafileManager::mdc, a, b, a + 1, b + 1);
+				lineDrawer.Draw(memory, a, b, a + 1, b + 1);
+				lineDrawer.Draw(CMetafileManager::mdc, a, b, a + 1, b + 1);
 			}			
 			xPencil = a;
 			yPencil = b;
@@ -503,10 +555,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				yPrint = y;
 			}				
 		}
-		else
-		{			
+
+		if (isPolygon > 0)
+		{
+			if (isPolygon == 1)
+			{
+				isPolygon = 2;
+			}
+            xPolygon = x;
+			yPolygon = y;
+		}
+
+		if (isPrinting+isPolygon > 0)
 			isDrawing = true;
-		}		
+				
 	}
 	break;
 	case WM_LBUTTONUP:
@@ -543,9 +605,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{		
 		int mouseDirection = GetIntSign(GET_WHEEL_DELTA_WPARAM(wParam));
 		if (wParam & MK_CONTROL)
-		{			
-			CWindowConfig::scale += 0.1*mouseDirection;
-			isScaling = true;		
+		{	
+			if (CWindowConfig::IsScalingPossible(mouseDirection))
+			{
+				CWindowConfig::scale += 0.1*mouseDirection;
+				isScaling = true;
+			}			
 		}
 		else if (CWindowConfig::IsMovingPossible())
 		{		
@@ -570,15 +635,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             HDC hdc = BeginPaint(hWnd, &ps);				
 
 			if (isScaling)
-			{
-				HPEN printPen = CreatePen(PS_SOLID, 0, RGB(255, 255, 255));
-				SelectObject(hdc, printPen);
+			{				
 				SetMapMode(memory, MM_ANISOTROPIC);
 				SetMapMode(secondMemory, MM_ANISOTROPIC);
+				SetMapMode(CMetafileManager::mdc, MM_ANISOTROPIC);
 				SetViewportExtEx(memory, CWindowConfig::width, CWindowConfig::hight, NULL);
 				SetWindowExtEx(memory, CWindowConfig::width * CWindowConfig::scale, CWindowConfig::hight * CWindowConfig::scale, NULL);
 				SetViewportExtEx(secondMemory, CWindowConfig::width, CWindowConfig::hight, NULL);
 				SetWindowExtEx(secondMemory, CWindowConfig::width * CWindowConfig::scale, CWindowConfig::hight * CWindowConfig::scale, NULL);
+				SetViewportExtEx(CMetafileManager::mdc, CWindowConfig::width, CWindowConfig::hight, NULL);
+				SetWindowExtEx(CMetafileManager::mdc, CWindowConfig::width * CWindowConfig::scale, CWindowConfig::hight * CWindowConfig::scale, NULL);
+				HPEN printPen = CreatePen(PS_SOLID, 0, RGB(255, 255, 255));
+				SelectObject(hdc, printPen);
 				Rectangle(hdc, -1, -1, CWindowConfig::width + 1, CWindowConfig::hight + 1);
 				isScaling = false;			
 			}	
@@ -586,9 +654,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{	
 				SetViewportOrgEx(memory, CWindowConfig::movingPoint.x, CWindowConfig::movingPoint.y, NULL);
 				SetViewportOrgEx(secondMemory, CWindowConfig::movingPoint.x, CWindowConfig::movingPoint.y, NULL);
+				SetViewportOrgEx(CMetafileManager::mdc, CWindowConfig::movingPoint.x, CWindowConfig::movingPoint.y, NULL);
 				HPEN printPen = CreatePen(PS_SOLID, 0, RGB(255, 255, 255));
 				SelectObject(hdc, printPen);
-				Rectangle(hdc, -1, -1, CWindowConfig::width + 1, CWindowConfig::hight + 1);		
+				Rectangle(hdc, -1, -1, CWindowConfig::width + 1, CWindowConfig::hight + 1);
 				isMoving = false;
 			}
 

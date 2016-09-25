@@ -7,6 +7,7 @@ public:
 	static double scale;
 	static POINT movingPoint;
 	CWindowConfig();
+	static bool IsScalingPossible(int mouseDirection);
 	static bool IsMovingPossible();
 	~CWindowConfig();
 };

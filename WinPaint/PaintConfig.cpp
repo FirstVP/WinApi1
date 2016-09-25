@@ -2,6 +2,7 @@
 #include "WindowConfig.h"
 #include "PaintConfig.h"
 #include "LineDrawer.h"
+#include "math.h"
 
 CPrimitiveDrawer* CPaintConfig::drawer = new CLineDrawer();
 int CPaintConfig::thickness = 1;
@@ -16,8 +17,8 @@ CPaintConfig::CPaintConfig()
 void CPaintConfig::ChooseThickness(int value)
 {
 	thickness = value;
-	pen = CreatePen(PS_SOLID, thickness * CWindowConfig::scale, color);
-}
+	pen = CreatePen(PS_SOLID, thickness / CWindowConfig::scale, color);
+} 
 
 void CPaintConfig::DrawPrimitive(HDC hdc, int x, int y, int x1, int y1)
 {
