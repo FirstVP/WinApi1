@@ -8,6 +8,7 @@
 #include "LineDrawer.h"
 #include "EllipseDrawer.h"
 #include "TriangleDrawer.h"
+#include "MetafileManager.h"
 #include "WinPaint.h"
 
 
@@ -109,8 +110,12 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance;
 
+   RECT wr = { 0, 0, CWindowConfig::width, CWindowConfig::hight };
+
+   AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, TRUE);
+
    HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
+      CW_USEDEFAULT, 0, wr.right - wr.left, wr.bottom - wr.top, nullptr, nullptr, hInstance, nullptr);
 
    if (!hWnd)
    {
@@ -123,8 +128,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    return TRUE;  
 }
 
-void InitializeWindow()
+void InitializeWindow(HWND hWnd)
 {
+	//SetWindowPos(hWnd, HWND_TOP, 0, 0, CWindowConfig::width, CWindowConfig::hight, SWP_SHOWWINDOW);
 	isDrawing = false;
 	isPrinting = 0;
 	isMoving = false;
@@ -210,17 +216,101 @@ int GetIntSign(int number)
 	return result;
 }
 
-LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+void SaveMetafile(HWND hWnd, LPCWSTR szFileName)
 {
 	
+	
+	
+	DeleteEnhMetaFile(CloseEnhMetaFile(CMetafileManager::mdc));
+	HENHMETAFILE metafile = GetEnhMetaFile(TEMPORARY_METAFILE_PATH);
+	CopyEnhMetaFile(metafile, szFileName);
+	DeleteEnhMetaFile(metafile);
+	DeleteObject(CMetafileManager::mdc);
+	DeleteFile(TEMPORARY_METAFILE_PATH);
 
+	CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd));
+	HENHMETAFILE restore = GetEnhMetaFile(szFileName);
+	RECT rect;
+	GetClientRect(hWnd, &rect);
+	rect.bottom *= CWindowConfig::scale;
+	rect.right *= CWindowConfig::scale;
+	PlayEnhMetaFile(CMetafileManager::mdc, restore, &rect);
+
+	/*CloseEnhMetaFile(CMetafileManager::mdc);
+	DeleteObject(CMetafileManager::mdc);
+	HENHMETAFILE metafile = GetEnhMetaFile(TEMPORARY_METAFILE_PATH);
+	CopyEnhMetaFile(metafile, szFileName);
+	DeleteEnhMetaFile(metafile);
+	DeleteFile(TEMPORARY_METAFILE_PATH);
+
+	CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd));
+	HENHMETAFILE restore = GetEnhMetaFile(szFileName);
+	RECT rect;
+	GetClientRect(hWnd, &rect);
+	rect.bottom *= CWindowConfig::scale;
+	rect.right *= CWindowConfig::scale;*/
+
+
+	//PlayEnhMetaFile(CMetafileManager::mdc, restore, &rect);
+
+	/*CloseEnhMetaFile(CMetafileManager::mdc);
+	if (CMetafileManager::mdc == NULL)
+		MessageBox(NULL, L"Lol", NULL, MB_OK);
+	HENHMETAFILE metafile = GetEnhMetaFile(TEMPORARY_METAFILE_PATH);
+	CopyEnhMetaFile(metafile, szFileName);
+	DeleteEnhMetaFile(metafile);
+	CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd));
+	if (CMetafileManager::mdc == NULL)
+		MessageBox(NULL,L"Lal", NULL, MB_OK);*/	
+		
+	//	CMetafileManager::mdc = NULL;
+
+	//CMetafileManager::CreateMetafileContext(hWnd, memory);
+	//if (CMetafileManager::mdc == NULL)
+	//	MessageBox(NULL, L"Lal", NULL, MB_OK);
+	//metafile = GetEnhMetaFile(szFileName);
+
+	//RECT rect;
+	//GetClientRect(hWnd, &rect);
+	//rect.bottom *= CWindowConfig::scale;
+	//rect.right *= CWindowConfig::scale;
+
+	//PlayEnhMetaFile(CMetafileManager::mdc, metafile, &rect);
+}
+
+void ShowSaveDialog(HWND hWnd)
+{
+	OPENFILENAME ofn;
+	WCHAR szFileName[MAX_PATH] = L"";
+	ZeroMemory(&ofn, sizeof(ofn));
+	ofn.lStructSize = sizeof(ofn); 
+	ofn.hwndOwner = hWnd;
+	ofn.lpstrFilter = L"Enhanced metafile (*.emf)\0";
+	ofn.lpstrFile = szFileName;
+	ofn.nMaxFile = MAX_PATH;
+	ofn.Flags = OFN_EXPLORER | OFN_HIDEREADONLY;
+	ofn.lpstrDefExt = L"emf";
+
+	if (GetSaveFileName(&ofn))
+	{
+		SaveMetafile(hWnd, szFileName);
+	}
+	else
+	{
+		MessageBox(hWnd, L"Cancelled", L"Save file", MB_OK);
+	}
+}
+
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
     switch (message)
     {
 	case WM_CREATE:
 	    {
-			InitializeWindow();
+			InitializeWindow(hWnd);
 			CreateNewLayer(hWnd, &memory, &memoryBitmap, CWindowConfig::width, CWindowConfig::hight);
 			CreateNewLayer(hWnd, &secondMemory, &secondMemoryBitmap, CWindowConfig::width, CWindowConfig::hight);
+			CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd));
 		}
 		break;
 	case WM_CHAR:
@@ -242,14 +332,46 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	break;
 	case WM_LBUTTONDBLCLK :
 		{	
-		
+		/*RECT rect;
+		GetClientRect(hWnd, &rect);
+		HDC hdcMeta = CreateEnhMetaFile(secondMemory,
+			L"D:\\Metafile\\file.emf",
+			&rect, NULL);
+		Rectangle(hdcMeta, 0, 0, 10, 10);
+		CloseEnhMetaFile(hdcMeta);*/
+		CloseEnhMetaFile(CMetafileManager::mdc);
+		//DeleteEnhMetaFile(CloseEnhMetaFile(CMetafileManager::mdc));
+		//DeleteObject(CMetafileManager::mdc);
+		//DeleteFile(TEMPORARY_METAFILE_PATH);
+		//CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd));
+		//RECT rect;
+		//GetClientRect(hWnd, &rect);
+		//wchar_t buffer[256];
+		//wsprintfW(buffer, L"%d", rect.right);
+		//MessageBoxW(nullptr, buffer, buffer, MB_OK);
 		}
 		break;
+	case WM_RBUTTONDBLCLK:
+	{
+		RECT rect;
+		GetClientRect(hWnd, &rect);
+		rect.bottom *= CWindowConfig::scale;
+		rect.right *= CWindowConfig::scale;
+		HENHMETAFILE save = GetEnhMetaFile(L"D:\\Metafile\\wh.emf"); 
+		PlayEnhMetaFile(memory, save, &rect);
+		InvalidateRect(hWnd, 0, FALSE);
+		UpdateWindow(hWnd);
+	}
+	break;
     case WM_COMMAND:
         {
             int wmId = LOWORD(wParam);
-            switch (wmId)
-            {
+            switch (wmId) {
+			case IDM_SAVEAS:
+			{
+				ShowSaveDialog(hWnd);
+				break;
+			}         
 			case ID_TOOLS_PENCIL:
 			{
 				isPencil = true;
@@ -332,10 +454,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			CLineDrawer* lineDrawer = new CLineDrawer();
 			HPEN pen = CreatePen(PS_SOLID, 5, CPaintConfig::color);
 			SelectObject(memory, pen);
+			SelectObject(CMetafileManager::mdc, pen);
 			if (!((xPencil == 0) && (yPencil == 0)))
+			{
 				lineDrawer->Draw(memory, xPencil, yPencil, a, b);
+				lineDrawer->Draw(CMetafileManager::mdc, xPencil, yPencil, a, b);
+			}				
 			else
-				lineDrawer->Draw(memory, a, b, a+1, b+1);
+			{
+				lineDrawer->Draw(memory, a, b, a + 1, b + 1);
+				lineDrawer->Draw(CMetafileManager::mdc, a, b, a + 1, b + 1);
+			}			
 			xPencil = a;
 			yPencil = b;
 			InvalidateRect(hWnd, 0, FALSE);
@@ -361,6 +490,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		if (isPrinting != 2) BitBlt(secondMemory, 0, 0, CWindowConfig::width, CWindowConfig::hight, memory, 0, 0, SRCCOPY);
 		SelectObject(memory, CPaintConfig::pen);
 		SelectObject(memory, CPaintConfig::brush);
+		SelectObject(CMetafileManager::mdc, CPaintConfig::pen);
+		SelectObject(CMetafileManager::mdc, CPaintConfig::brush);
 		x = LOWORD(lParam);
 		y = HIWORD(lParam);		
 		if (isPrinting > 0)
@@ -402,6 +533,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			isDrawing = false;
 			CPaintConfig::DrawPrimitive(memory, x, y, a, b);
+			CPaintConfig::DrawPrimitive(CMetafileManager::mdc, x, y, a, b);		
 			InvalidateRect(hWnd, 0, FALSE);
 			UpdateWindow(hWnd);
 		}				

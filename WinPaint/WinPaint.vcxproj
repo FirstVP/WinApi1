@@ -143,6 +143,7 @@
   <ItemGroup>
     <ClInclude Include="EllipseDrawer.h" />
     <ClInclude Include="LineDrawer.h" />
+    <ClInclude Include="MetafileManager.h" />
     <ClInclude Include="PaintConfig.h" />
     <ClInclude Include="PrimitiveDrawer.h" />
     <ClInclude Include="RectangleDrawer.h" />
@@ -157,6 +158,7 @@
   <ItemGroup>
     <ClCompile Include="EllipseDrawer.cpp" />
     <ClCompile Include="LineDrawer.cpp" />
+    <ClCompile Include="MetafileManager.cpp" />
     <ClCompile Include="PaintConfig.cpp" />
     <ClCompile Include="PrimitiveDrawer.cpp" />
     <ClCompile Include="RectangleDrawer.cpp" />
