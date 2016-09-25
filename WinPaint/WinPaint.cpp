@@ -2,6 +2,7 @@
 //
 
 #include "stdafx.h"
+#include "string"
 #include "PaintConfig.h"
 #include "WindowConfig.h"
 #include "RectangleDrawer.h"
@@ -18,7 +19,7 @@
 HINSTANCE hInst;                                // текущий экземпляр
 WCHAR szTitle[MAX_LOADSTRING];                  // Текст строки заголовка
 WCHAR szWindowClass[MAX_LOADSTRING];            // имя класса главного окна
-
+WCHAR szTempFilePath[MAX_LOADSTRING];
 
 HDC memory, secondMemory;
 HBITMAP memoryBitmap, secondMemoryBitmap;
@@ -134,6 +135,28 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    return TRUE;  
 }
 
+std::wstring GetExeFileName()
+{
+	wchar_t buffer[MAX_PATH];
+	GetModuleFileName(NULL, buffer, MAX_PATH);
+	return std::wstring(buffer);
+}
+
+std::wstring GetExePath()
+{
+	std::wstring f = GetExeFileName();
+	return f.substr(0, f.find_last_of(L"\\/"));
+}
+
+void InitializePath()
+{
+	//GetModuleFileName(NULL, szTempFilePath, MAX_LOADSTRING);
+	std::wstring name(GetExePath());
+	wchar_t* path = const_cast<wchar_t*>(name.c_str());
+	MessageBox(NULL, szTempFilePath, NULL, MB_OK);
+	//wcscat(szTempFilePath, L"\\Temp\\Temp.emf");
+}
+
 void InitializeWindow(HWND hWnd)
 {
 	isDrawing = false;
@@ -243,7 +266,7 @@ void SaveMetafile(HWND hWnd, LPCWSTR szFileName)
 	DeleteObject(CMetafileManager::mdc);
 	DeleteFile(TEMPORARY_METAFILE_PATH);
 
-	CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd));
+	CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd), TEMPORARY_METAFILE_PATH);
 	HENHMETAFILE restore = GetEnhMetaFile(szFileName);
 	RECT rect;
 	GetClientRect(hWnd, &rect);
@@ -282,7 +305,7 @@ void OpenMetafile(HWND hWnd, LPCWSTR szFileName)
 	DeleteObject(CMetafileManager::mdc);
 	DeleteFile(TEMPORARY_METAFILE_PATH);
 
-	CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd));
+	CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd), TEMPORARY_METAFILE_PATH);
 	HENHMETAFILE restore = GetEnhMetaFile(szFileName);
 	RECT rect;
 	GetClientRect(hWnd, &rect);
@@ -324,6 +347,18 @@ void ShowOpenDialog(HWND hWnd)
 	}
 }
 
+bool dirExists(const std::string& dirName_in)
+{
+	DWORD ftyp = GetFileAttributesA(dirName_in.c_str());
+	if (ftyp == INVALID_FILE_ATTRIBUTES)
+		return false;
+
+	if (ftyp & FILE_ATTRIBUTE_DIRECTORY)
+		return true;
+
+	return false;
+}
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
@@ -336,9 +371,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_CREATE:
 	    {
 			InitializeWindow(hWnd);
+			InitializePath();
 			CreateNewLayer(hWnd, &memory, &memoryBitmap, CWindowConfig::width, CWindowConfig::hight);
 			CreateNewLayer(hWnd, &secondMemory, &secondMemoryBitmap, CWindowConfig::width, CWindowConfig::hight);
-			CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd));
+			CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd), TEMPORARY_METAFILE_PATH);
 			CPaintConfig::ChooseThickness(THIN_LINE);
 		}
 		break;
@@ -361,10 +397,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	break;
 	case WM_LBUTTONDBLCLK :
 		{	
-		CloseEnhMetaFile(CMetafileManager::mdc);
-		//wchar_t buffer[256];
-		//wsprintfW(buffer, L"%d", rect.right);
-		//MessageBoxW(nullptr, buffer, buffer, MB_OK);
+		wchar_t buffer[256];
+		//wsprintfW(buffer, L"%d", 3);
+		//if (dirExists("C:\\Metafile"))
+		GetModuleFileName(NULL, szTempFilePath, MAX_LOADSTRING);
+		//CloseEnhMetaFile(CMetafileManager::mdc);
+		wcscat(szTempFilePath, L"\\Temp\\Temp.emf");
+		MessageBoxW(nullptr, szTempFilePath, NULL, MB_OK);
 		}
 		break;
 	case WM_RBUTTONDBLCLK:
@@ -494,7 +533,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			b = HIWORD(lParam);
 			CLineDrawer lineDrawer;
 			lineDrawer.Draw(memory, xPolygon, yPolygon, a, b);
-			lineDrawer.Draw(CMetafileManager::mdc, xPolygon, yPolygon, a, b);
 			InvalidateRect(hWnd, 0, FALSE);
 			UpdateWindow(hWnd);
 		}
@@ -558,19 +596,37 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		if (isPolygon > 0)
 		{
+			if (isPolygon == 2)
+			{
+				CLineDrawer lineDrawer;
+				lineDrawer.Draw(CMetafileManager::mdc, xPolygon, yPolygon, x, y);
+			}
+			else
 			if (isPolygon == 1)
 			{
 				isPolygon = 2;
-			}
+			}			
             xPolygon = x;
 			yPolygon = y;
 		}
 
-		if (isPrinting+isPolygon > 0)
+		if (isPrinting + isPolygon > 0)
+			isDrawing = false;
+		else
 			isDrawing = true;
 				
 	}
 	break;
+	case WM_RBUTTONDOWN:
+	{
+		if (isPolygon == 2)
+		{
+			BitBlt(memory, 0, 0, CWindowConfig::width, CWindowConfig::hight, secondMemory, 0, 0, SRCCOPY);
+			isPolygon = 0;
+			InvalidateRect(hWnd, 0, FALSE);
+			UpdateWindow(hWnd);
+		}
+	}
 	case WM_LBUTTONUP:
 	{
 		int a = LOWORD(lParam);
@@ -581,6 +637,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			yPencil = 0;
 			InvalidateRect(hWnd, 0, FALSE);
 			UpdateWindow(hWnd);
+		}
+		if (isPolygon)
+		{
+
 		}
 		if (isPrinting == 2)
 		{					

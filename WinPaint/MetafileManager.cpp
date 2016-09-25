@@ -9,7 +9,7 @@ CMetafileManager::CMetafileManager()
 {
 }
 
-void CMetafileManager::CreateMetafileContext(HWND hWnd, HDC hdc)
+void CMetafileManager::CreateMetafileContext(HWND hWnd, HDC hdc, LPCWSTR tempFilePath)
 {
 	RECT rect;
 	int iWidthMM = GetDeviceCaps(hdc, HORZSIZE);
@@ -25,7 +25,7 @@ void CMetafileManager::CreateMetafileContext(HWND hWnd, HDC hdc)
 	rect.bottom = (rect.bottom * iHeightMM * 80) / iHeightPels;
 
 	mdc = CreateEnhMetaFile(hdc,
-		TEMPORARY_METAFILE_PATH,
+		tempFilePath,
 		&rect, NULL);
 }
 
