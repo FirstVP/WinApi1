@@ -24,6 +24,8 @@ void CTextManager::Initialize(HDC hdc)
 void CTextManager::CreateInput(HWND hWnd, HDC hdc, int a, int b)
 {
 	buffer.clear();
+	x = a;
+	y = b;
 	UpdateCaret(hWnd, hdc);
 }
 
@@ -54,6 +56,7 @@ void CTextManager::DeleteChar()
 void CTextManager::DeleteInput()
 {
 	OutText(CMetafileManager::mdc);
+	buffer.clear();
 	status = 0;
 	position = 0;
 	x = 0;
@@ -92,7 +95,7 @@ void CTextManager::OutText(HDC hdc)
 	SetRect(&rc, (x - CWindowConfig::movingPoint.x)*CWindowConfig::scale, (y - CWindowConfig::movingPoint.y)*CWindowConfig::scale,
 		(x - CWindowConfig::movingPoint.x)*CWindowConfig::scale + size.cx, (y - CWindowConfig::movingPoint.y)*CWindowConfig::scale+ size.cy);
 	wchar_t* text = const_cast<wchar_t*>(buffer.c_str());
-	DrawText(hdc, text, -1, &rc, DT_LEFT);
+	DrawText(hdc, text, -1, &rc, DT_NOCLIP);
 }
 
 

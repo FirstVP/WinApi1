@@ -499,6 +499,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}					
 			case ID_TOOLS_TEXT:
 			{
+				CTextManager::DeleteInput();
 				CTextManager::status = 1;
 				isPrinting = 0;
 				isPolygon = 0;
@@ -518,6 +519,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				break;
 			case IDM_PRINT:
 				isPencil = false;
+				CTextManager::DeleteInput();
+				isPrinting = 0;
+				isPolygon = 0;
 				isPrinting = 1;			
 				break;
             case IDM_ABOUT:
@@ -540,10 +544,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			SelectObject(memory, GetStockObject(HOLLOW_BRUSH));
 			SelectObject(memory, printPen);
 			BitBlt(memory, 0, 0, CWindowConfig::width, CWindowConfig::hight, secondMemory, 0, 0, SRCCOPY);
-			int a = 0; 
-			int b = 0; 
-			a = LOWORD(lParam);
-			b = HIWORD(lParam);
+			int a = LOWORD(lParam);
+			int b = HIWORD(lParam);
 			if ((a > xPrint) && (b > yPrint))
 			Rectangle(memory, xPrint, yPrint, a, b);	
 		}	
@@ -551,12 +553,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			isDrawing = false;
 			BitBlt(memory, 0, 0, CWindowConfig::width, CWindowConfig::hight, secondMemory, 0, 0, SRCCOPY);
-			int a = 0;
-			int b = 0;
-			a = LOWORD(lParam);
-			b = HIWORD(lParam);
+			int a = LOWORD(lParam);
+			int b = HIWORD(lParam);
 			CLineDrawer lineDrawer;
-			lineDrawer.Draw(memory, xPolygon, yPolygon, a, b);
+			lineDrawer.Draw(memory, (xPolygon - CWindowConfig::movingPoint.x) * CWindowConfig::scale, (yPolygon - CWindowConfig::movingPoint.y) * CWindowConfig::scale, a, b);
 		}
 		if ((isPencil) && ((GetKeyState(VK_LBUTTON) & 0x100) != 0))
 		{
@@ -581,7 +581,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			yPencil = b;
 
 		}
-		else
 		if (true == isDrawing)
 		{
 			BitBlt(memory, 0, 0, CWindowConfig::width*CWindowConfig::scale, CWindowConfig::hight*CWindowConfig::scale, secondMemory, 0, 0, SRCCOPY);
@@ -590,7 +589,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			a = LOWORD(lParam);
 			b = HIWORD(lParam);
 			CPaintConfig::DrawPrimitive(memory, (x - CWindowConfig::movingPoint.x) * CWindowConfig::scale, (y - CWindowConfig::movingPoint.y) * CWindowConfig::scale, a, b);
-
 		}
 		InvalidateRect(hWnd, 0, FALSE);
 		UpdateWindow(hWnd);
@@ -605,8 +603,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		SelectObject(CMetafileManager::mdc, CPaintConfig::brush);
 		x = LOWORD(lParam);
 		y = HIWORD(lParam);		
-		x = x / CWindowConfig::scale;
-		y = y / CWindowConfig::scale;
+		x /= CWindowConfig::scale;
+		y /= CWindowConfig::scale;
 		x += CWindowConfig::movingPoint.x;
 		y += CWindowConfig::movingPoint.y;
 
@@ -634,9 +632,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			if (isPolygon == 2)
 			{
 				CLineDrawer lineDrawer;
-				lineDrawer.Draw(CMetafileManager::mdc, xPolygon, yPolygon, x, y);
+				lineDrawer.Draw(CMetafileManager::mdc, xPolygon, yPolygon, LOWORD(lParam), HIWORD(lParam));
 			}
-			else
 			if (isPolygon == 1)
 			{
 				isPolygon = 2;
@@ -742,7 +739,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				SetViewportOrgEx(memory, CWindowConfig::movingPoint.x, CWindowConfig::movingPoint.y, NULL);
 				SetViewportOrgEx(secondMemory, CWindowConfig::movingPoint.x, CWindowConfig::movingPoint.y, NULL);
 				SetViewportOrgEx(CMetafileManager::mdc, CWindowConfig::movingPoint.x, CWindowConfig::movingPoint.y, NULL);
-				CTextManager::UpdateCaret(hWnd, memory);
 				HPEN printPen = CreatePen(PS_SOLID, 0, RGB(255, 255, 255));
 				SelectObject(hdc, printPen);
 				Rectangle(hdc, -1, -1, CWindowConfig::width + 1, CWindowConfig::hight + 1);
