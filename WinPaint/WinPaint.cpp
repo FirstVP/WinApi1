@@ -9,6 +9,7 @@
 #include "LineDrawer.h"
 #include "EllipseDrawer.h"
 #include "TriangleDrawer.h"
+#include "TextManager.h"
 #include "MetafileManager.h"
 #include "WinPaint.h"
 
@@ -101,10 +102,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.hInstance      = hInstance;
     wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_WINPAINT));
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
-	//HBRUSH hb = ::CreateSolidBrush(RGB(222, 231, 249));
-	//wcex.hbrBackground = hb;
     wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-	wcex.hbrBackground = (HBRUSH)CreateSolidBrush(RGB(0, 128, 256));
     wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_WINPAINT);
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
@@ -150,11 +148,12 @@ std::wstring GetExePath()
 
 void InitializePath()
 {
-	//GetModuleFileName(NULL, szTempFilePath, MAX_LOADSTRING);
 	std::wstring name(GetExePath());
 	wchar_t* path = const_cast<wchar_t*>(name.c_str());
-	MessageBox(NULL, szTempFilePath, NULL, MB_OK);
-	//wcscat(szTempFilePath, L"\\Temp\\Temp.emf");
+	wcscpy(szTempFilePath, path);
+	wcscat(szTempFilePath, L"\\Temp");
+	CreateDirectory(szTempFilePath, NULL);
+	wcscat(szTempFilePath, L"\\Temp.emf");	
 }
 
 void InitializeWindow(HWND hWnd)
@@ -347,27 +346,15 @@ void ShowOpenDialog(HWND hWnd)
 	}
 }
 
-bool dirExists(const std::string& dirName_in)
+void InitializeTextConfiguration(HDC hdc)
 {
-	DWORD ftyp = GetFileAttributesA(dirName_in.c_str());
-	if (ftyp == INVALID_FILE_ATTRIBUTES)
-		return false;
-
-	if (ftyp & FILE_ATTRIBUTE_DIRECTORY)
-		return true;
-
-	return false;
+	CTextManager::Initialize(hdc);
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
-	case WM_ERASEBKGND:
-		{		
-		SetBkColor((HDC)wParam, 0x000000ff); 
-		break;
-		}
 	case WM_CREATE:
 	    {
 			InitializeWindow(hWnd);
@@ -376,46 +363,41 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			CreateNewLayer(hWnd, &secondMemory, &secondMemoryBitmap, CWindowConfig::width, CWindowConfig::hight);
 			CMetafileManager::CreateMetafileContext(hWnd, GetDC(hWnd), TEMPORARY_METAFILE_PATH);
 			CPaintConfig::ChooseThickness(THIN_LINE);
+			InitializeTextConfiguration(memory);
 		}
 		break;
 	case WM_CHAR:
 	{
-		static int xText; //textMode
-		static int yText;
-		xText = x;
-		yText = y;
-		static int charWidth = 3;
-		TCHAR ch = (TCHAR)wParam;
-		GetCharWidth32(memory, (UINT)wParam, (UINT)wParam,
-			&charWidth);
-		TextOut(memory, xText, yText,
-			&ch, 1);
-		xText += charWidth+1;
-		InvalidateRect(hWnd, 0, FALSE);
-		UpdateWindow(hWnd);
+		if (CTextManager::status == 2)
+		{
+			wchar_t ch;
+			int currentWidth = 0;
+			switch (wParam)
+			{
+			default:
+				ch = (wchar_t)wParam;
+			}
+			GetCharWidth32(memory, (UINT)wParam, (UINT)wParam,
+				&currentWidth);
+			CTextManager::length += currentWidth;	
+			CTextManager::buffer.push_back(ch);	
+			CTextManager::position++;
+			InvalidateRect(hWnd, 0, FALSE);
+			UpdateWindow(hWnd);
+		}	
 	}
 	break;
 	case WM_LBUTTONDBLCLK :
 		{	
-		wchar_t buffer[256];
-		//wsprintfW(buffer, L"%d", 3);
-		//if (dirExists("C:\\Metafile"))
+		/*wchar_t buffer[256];
 		GetModuleFileName(NULL, szTempFilePath, MAX_LOADSTRING);
-		//CloseEnhMetaFile(CMetafileManager::mdc);
 		wcscat(szTempFilePath, L"\\Temp\\Temp.emf");
-		MessageBoxW(nullptr, szTempFilePath, NULL, MB_OK);
+		MessageBoxW(nullptr, szTempFilePath, NULL, MB_OK);*/
 		}
 		break;
 	case WM_RBUTTONDBLCLK:
 	{
-		RECT rect;
-		GetClientRect(hWnd, &rect);
-		rect.bottom *= CWindowConfig::scale;
-		rect.right *= CWindowConfig::scale;
-		HENHMETAFILE save = GetEnhMetaFile(L"D:\\Metafile\\wh.emf"); 
-		PlayEnhMetaFile(memory, save, &rect);
-		InvalidateRect(hWnd, 0, FALSE);
-		UpdateWindow(hWnd);
+		
 	}
 	break;
     case WM_COMMAND:
@@ -434,6 +416,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			case ID_TOOLS_POLYGON:
 			{
+				CTextManager::status = 0;
 				isPrinting = 0;
 				isPolygon = 1;
 				isPencil = false;
@@ -441,6 +424,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			case ID_TOOLS_PENCIL:
 			{
+				CTextManager::status = 0;
 				isPrinting = 0;
 				isPolygon = 0;
 				isPencil = true;
@@ -449,6 +433,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case ID_TOOLS_LINE:
 			{
 				CPaintConfig::ChoosePrimitiveDrawer(new CLineDrawer());
+				CTextManager::status = 0;
 				isPrinting = 0;
 				isPolygon = 0;
 				isPencil = false;
@@ -457,6 +442,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case ID_TOOLS_TRIANGLE:
 			{
 				CPaintConfig::ChoosePrimitiveDrawer(new CTriangleDrawer());
+				CTextManager::status = 0;
 				isPrinting = 0;
 				isPolygon = 0;
 				isPencil = false;
@@ -465,6 +451,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case ID_TOOLS_ELLIPSE:
 			{
 				CPaintConfig::ChoosePrimitiveDrawer(new CEllipseDrawer());
+				CTextManager::status = 0;
 				isPrinting = 0;
 				isPolygon = 0;
 				isPencil = false;
@@ -473,11 +460,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case ID_TOOLS_RECTANGLE:
 			{
 				CPaintConfig::ChoosePrimitiveDrawer(new CRectangleDrawer());
+				CTextManager::status = 0;
 				isPrinting = 0;
 				isPolygon = 0;
 				isPencil = false;
 				break;
-			}								
+			}					
+			case ID_TOOLS_TEXT:
+			{
+				CTextManager::status = 1;
+				isPrinting = 0;
+				isPolygon = 0;
+				isPencil = false;
+			}
 			case ID_LINESETTINGS_THIN:
 				CPaintConfig::ChooseThickness(THIN_LINE);
 				break;
@@ -584,6 +579,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		SelectObject(CMetafileManager::mdc, CPaintConfig::brush);
 		x = LOWORD(lParam);
 		y = HIWORD(lParam);		
+
+		if (CTextManager::status > 0)
+		{
+			if (CTextManager::status == 1)
+			{
+				CTextManager::status = 2;
+				CTextManager::CreateInput(hWnd, x, y, memory);
+				CTextManager::scale = CWindowConfig::scale;
+			}
+		}
+
 		if (isPrinting > 0)
 		{
 			if (isPrinting == 1)
@@ -610,7 +616,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			yPolygon = y;
 		}
 
-		if (isPrinting + isPolygon > 0)
+		if (isPrinting + isPolygon + CTextManager::status > 0)
 			isDrawing = false;
 		else
 			isDrawing = true;
@@ -635,20 +641,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 			xPencil = 0;
 			yPencil = 0;
-			InvalidateRect(hWnd, 0, FALSE);
-			UpdateWindow(hWnd);
-		}
-		if (isPolygon)
-		{
-
 		}
 		if (isPrinting == 2)
 		{					
 			isPrinting = 3;
 			BitBlt(memory, 0, 0, CWindowConfig::width, CWindowConfig::hight, secondMemory, 0, 0, SRCCOPY);			
-			Print(xPrint, yPrint, a, b);
-			InvalidateRect(hWnd, 0, FALSE);
-			UpdateWindow(hWnd);			
+			Print(xPrint, yPrint, a, b);		
 		}			
 		else
 		if (isDrawing)
@@ -656,9 +654,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			isDrawing = false;
 			CPaintConfig::DrawPrimitive(memory, x, y, a, b);
 			CPaintConfig::DrawPrimitive(CMetafileManager::mdc, x, y, a, b);		
-			InvalidateRect(hWnd, 0, FALSE);
-			UpdateWindow(hWnd);
-		}				
+
+		}
+		InvalidateRect(hWnd, 0, FALSE);
+		UpdateWindow(hWnd);
 	}
 	break;
 	case WM_MOUSEWHEEL:
@@ -693,7 +692,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {	
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);				
-
 			if (isScaling)
 			{				
 				SetMapMode(memory, MM_ANISOTROPIC);
@@ -704,21 +702,28 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				SetViewportExtEx(secondMemory, CWindowConfig::width, CWindowConfig::hight, NULL);
 				SetWindowExtEx(secondMemory, CWindowConfig::width * CWindowConfig::scale, CWindowConfig::hight * CWindowConfig::scale, NULL);
 				SetViewportExtEx(CMetafileManager::mdc, CWindowConfig::width, CWindowConfig::hight, NULL);
-				SetWindowExtEx(CMetafileManager::mdc, CWindowConfig::width * CWindowConfig::scale, CWindowConfig::hight * CWindowConfig::scale, NULL);
+				SetWindowExtEx(CMetafileManager::mdc, CWindowConfig::width * CWindowConfig::scale, CWindowConfig::hight * CWindowConfig::scale, NULL);				
 				HPEN printPen = CreatePen(PS_SOLID, 0, RGB(255, 255, 255));
 				SelectObject(hdc, printPen);
 				Rectangle(hdc, -1, -1, CWindowConfig::width + 1, CWindowConfig::hight + 1);
-				isScaling = false;			
+				isScaling = false;	
 			}	
 			if (isMoving)
 			{	
 				SetViewportOrgEx(memory, CWindowConfig::movingPoint.x, CWindowConfig::movingPoint.y, NULL);
 				SetViewportOrgEx(secondMemory, CWindowConfig::movingPoint.x, CWindowConfig::movingPoint.y, NULL);
 				SetViewportOrgEx(CMetafileManager::mdc, CWindowConfig::movingPoint.x, CWindowConfig::movingPoint.y, NULL);
+				CTextManager::UpdateCaret(hWnd, memory);
 				HPEN printPen = CreatePen(PS_SOLID, 0, RGB(255, 255, 255));
 				SelectObject(hdc, printPen);
 				Rectangle(hdc, -1, -1, CWindowConfig::width + 1, CWindowConfig::hight + 1);
-				isMoving = false;
+				isMoving = false;	
+			}
+			if (CTextManager::status == 2)
+			{
+				BitBlt(memory, 0, 0, CWindowConfig::width, CWindowConfig::hight, secondMemory, 0, 0, SRCCOPY);
+				CTextManager::OutText(memory);
+				CTextManager::UpdateCaret(hWnd, memory);
 			}
 
 			BitBlt(hdc, 0, 0, CWindowConfig::width, CWindowConfig::hight, memory, 0, 0, SRCCOPY);
