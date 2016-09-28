@@ -1,16 +1,15 @@
 #include "stdafx.h"
 #include "WindowConfig.h"
+#include "MetafileManager.h"
 #include "TextManager.h"
 
 char CTextManager::status = 0;
 TEXTMETRIC CTextManager::tm;
 std::wstring CTextManager::buffer;
 int CTextManager::position = 0;
-int CTextManager::charWidth = 5;
-int CTextManager::charHeight = 10;
 int CTextManager::x = 0;
 int CTextManager::y = 0;
-int CTextManager::length = 0;
+int CTextManager::charHeight = 0;
 
 CTextManager::CTextManager()
 {
@@ -19,32 +18,64 @@ CTextManager::CTextManager()
 void CTextManager::Initialize(HDC hdc)
 {
 	GetTextMetrics(hdc, &tm);
-	charWidth = tm.tmAveCharWidth;
 	charHeight = tm.tmHeight;
 }
 
-void CTextManager::CreateInput(HWND hWnd, int a, int b, HDC hdc)
+void CTextManager::CreateInput(HWND hWnd, HDC hdc, int a, int b)
 {
-	x = a / CWindowConfig::scale;
-	y = b / CWindowConfig::scale;
-	x += CWindowConfig::movingPoint.x;
-	y += CWindowConfig::movingPoint.y;
+	buffer.clear();
 	UpdateCaret(hWnd, hdc);
 }
 
 void CTextManager::UpdateCaret(HWND hWnd, HDC hdc)
 {	
-	wchar_t* text = const_cast<wchar_t*>(buffer.c_str());
-	int len = buffer.length();
 	SIZE size;
-	GetTextExtentPoint32(hdc, text, len, &size);
-	int w = size.cx;
-	int h = size.cy;
-
+	GetTextSize(hdc, &size, position);
 	DestroyCaret();
 	CreateCaret(hWnd, (HBITMAP)1, 0, charHeight*CWindowConfig::scale);
-	SetCaretPos( (x - CWindowConfig::movingPoint.x) * CWindowConfig::scale + w, (y - CWindowConfig::movingPoint.y) * CWindowConfig::scale);
+	SetCaretPos( (x - CWindowConfig::movingPoint.x) * CWindowConfig::scale + size.cx, (y - CWindowConfig::movingPoint.y) * CWindowConfig::scale);
 	ShowCaret(hWnd);	
+}
+
+void CTextManager::InsertChar(wchar_t* ch)
+{
+	buffer.insert(position++, ch);
+}
+
+void CTextManager::DeleteChar()
+{
+	if (position >= 1)
+	{
+		buffer.erase(position - 1, 1);
+		position--;
+	}	
+}
+
+void CTextManager::DeleteInput()
+{
+	OutText(CMetafileManager::mdc);
+	status = 0;
+	position = 0;
+	x = 0;
+	y = 0;
+	DestroyCaret();
+}
+
+int CTextManager::GetBufferLength()
+{
+	return buffer.length();
+}
+
+void CTextManager::IncPosition()
+{
+	if (position < GetBufferLength())
+		position++;
+}
+
+void CTextManager::DecPosition()
+{
+	if (position >= 1)
+		position--;
 }
 
 void CTextManager::GetTextSize(HDC hdc, SIZE * size, int n)
@@ -55,23 +86,13 @@ void CTextManager::GetTextSize(HDC hdc, SIZE * size, int n)
 
 void CTextManager::OutText(HDC hdc)
 {
-	wchar_t* text = const_cast<wchar_t*>(buffer.c_str());
-	int len = buffer.length();
 	SIZE size;
-	GetTextSize(hdc, &size, len);
-	int width = size.cx;
-	int height = size.cy;
-
-	//wchar_t buffer[256];
-	//wsprintf(buffer, L"%d", w);
-	//MessageBox(NULL, buffer, NULL, MB_OKCANCEL);
-
+	GetTextSize(hdc, &size, buffer.length());
 	RECT rc;
 	SetRect(&rc, (x - CWindowConfig::movingPoint.x)*CWindowConfig::scale, (y - CWindowConfig::movingPoint.y)*CWindowConfig::scale,
-		(x - CWindowConfig::movingPoint.x)*CWindowConfig::scale + w, (charHeight+y - CWindowConfig::movingPoint.y)*CWindowConfig::scale);
-	
+		(x - CWindowConfig::movingPoint.x)*CWindowConfig::scale + size.cx, (y - CWindowConfig::movingPoint.y)*CWindowConfig::scale+ size.cy);
+	wchar_t* text = const_cast<wchar_t*>(buffer.c_str());
 	DrawText(hdc, text, -1, &rc, DT_LEFT);
-	SelectObject(hdc, GetStockObject(HOLLOW_BRUSH));
 }
 
 

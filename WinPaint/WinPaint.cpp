@@ -349,6 +349,7 @@ void ShowOpenDialog(HWND hWnd)
 void InitializeTextConfiguration(HDC hdc)
 {
 	CTextManager::Initialize(hdc);
+	CTextManager::Initialize(CMetafileManager::mdc);
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -366,38 +367,68 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			InitializeTextConfiguration(memory);
 		}
 		break;
+	case WM_KEYDOWN:
+	{
+		switch (wParam)
+		{
+		case VK_ESCAPE:
+		{
+			if (CTextManager::status == 2)
+			{				
+				CTextManager::DeleteInput();
+			}
+			break;
+		}
+		case VK_BACK:
+		{
+			CTextManager::DeleteChar();
+			break;
+		}
+		case VK_RIGHT:
+		{
+			CTextManager::IncPosition();
+			break;
+		}
+		case VK_LEFT:
+		{
+			CTextManager::DecPosition();
+			break;
+		}
+		default:
+			return 0;
+		}
+		InvalidateRect(hWnd, 0, FALSE);
+		UpdateWindow(hWnd);
+	}
 	case WM_CHAR:
 	{
 		if (CTextManager::status == 2)
 		{
 			wchar_t ch;
-			int currentWidth = 0;
 			switch (wParam)
+			{	
+			case VK_ESCAPE:
+			case VK_BACK:
+			case VK_RIGHT:
+			case VK_LEFT:
 			{
+				break;
+			}
 			default:
 				ch = (wchar_t)wParam;
-			}
-			GetCharWidth32(memory, (UINT)wParam, (UINT)wParam,
-				&currentWidth);
-			CTextManager::length += currentWidth;	
-			CTextManager::buffer.push_back(ch);	
-			CTextManager::position++;
-			InvalidateRect(hWnd, 0, FALSE);
-			UpdateWindow(hWnd);
+				CTextManager::InsertChar(&ch);		
+				InvalidateRect(hWnd, 0, FALSE);
+				UpdateWindow(hWnd);
+			}		
 		}	
 	}
 	break;
 	case WM_LBUTTONDBLCLK :
-		{	
-		/*wchar_t buffer[256];
-		GetModuleFileName(NULL, szTempFilePath, MAX_LOADSTRING);
-		wcscat(szTempFilePath, L"\\Temp\\Temp.emf");
-		MessageBoxW(nullptr, szTempFilePath, NULL, MB_OK);*/
+		{		
 		}
 		break;
 	case WM_RBUTTONDBLCLK:
 	{
-		
 	}
 	break;
     case WM_COMMAND:
@@ -416,7 +447,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			case ID_TOOLS_POLYGON:
 			{
-				CTextManager::status = 0;
+				CTextManager::DeleteInput();
 				isPrinting = 0;
 				isPolygon = 1;
 				isPencil = false;
@@ -424,7 +455,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			case ID_TOOLS_PENCIL:
 			{
-				CTextManager::status = 0;
+				CTextManager::DeleteInput();
 				isPrinting = 0;
 				isPolygon = 0;
 				isPencil = true;
@@ -433,7 +464,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case ID_TOOLS_LINE:
 			{
 				CPaintConfig::ChoosePrimitiveDrawer(new CLineDrawer());
-				CTextManager::status = 0;
+				CTextManager::DeleteInput();
 				isPrinting = 0;
 				isPolygon = 0;
 				isPencil = false;
@@ -442,7 +473,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case ID_TOOLS_TRIANGLE:
 			{
 				CPaintConfig::ChoosePrimitiveDrawer(new CTriangleDrawer());
-				CTextManager::status = 0;
+				CTextManager::DeleteInput();
 				isPrinting = 0;
 				isPolygon = 0;
 				isPencil = false;
@@ -451,7 +482,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case ID_TOOLS_ELLIPSE:
 			{
 				CPaintConfig::ChoosePrimitiveDrawer(new CEllipseDrawer());
-				CTextManager::status = 0;
+				CTextManager::DeleteInput();
 				isPrinting = 0;
 				isPolygon = 0;
 				isPencil = false;
@@ -460,7 +491,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case ID_TOOLS_RECTANGLE:
 			{
 				CPaintConfig::ChoosePrimitiveDrawer(new CRectangleDrawer());
-				CTextManager::status = 0;
+				CTextManager::DeleteInput();
 				isPrinting = 0;
 				isPolygon = 0;
 				isPencil = false;
@@ -514,9 +545,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			a = LOWORD(lParam);
 			b = HIWORD(lParam);
 			if ((a > xPrint) && (b > yPrint))
-			Rectangle(memory, xPrint, yPrint, a, b);
-			InvalidateRect(hWnd, 0, FALSE);
-			UpdateWindow(hWnd);
+			Rectangle(memory, xPrint, yPrint, a, b);	
 		}	
 		if (2 == isPolygon)
 		{
@@ -528,8 +557,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			b = HIWORD(lParam);
 			CLineDrawer lineDrawer;
 			lineDrawer.Draw(memory, xPolygon, yPolygon, a, b);
-			InvalidateRect(hWnd, 0, FALSE);
-			UpdateWindow(hWnd);
 		}
 		if ((isPencil) && ((GetKeyState(VK_LBUTTON) & 0x100) != 0))
 		{
@@ -552,8 +579,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}			
 			xPencil = a;
 			yPencil = b;
-			InvalidateRect(hWnd, 0, FALSE);
-			UpdateWindow(hWnd);
+
 		}
 		else
 		if (true == isDrawing)
@@ -563,11 +589,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			int b = 0;
 			a = LOWORD(lParam);
 			b = HIWORD(lParam);
-			CPaintConfig::DrawPrimitive(memory, x, y, a, b);
-			InvalidateRect(hWnd, 0, FALSE);
-			UpdateWindow(hWnd);
+			CPaintConfig::DrawPrimitive(memory, (x - CWindowConfig::movingPoint.x) * CWindowConfig::scale, (y - CWindowConfig::movingPoint.y) * CWindowConfig::scale, a, b);
+
 		}
-		
+		InvalidateRect(hWnd, 0, FALSE);
+		UpdateWindow(hWnd);
 	}
 	break;
 	case WM_LBUTTONDOWN:
@@ -579,14 +605,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		SelectObject(CMetafileManager::mdc, CPaintConfig::brush);
 		x = LOWORD(lParam);
 		y = HIWORD(lParam);		
+		x = x / CWindowConfig::scale;
+		y = y / CWindowConfig::scale;
+		x += CWindowConfig::movingPoint.x;
+		y += CWindowConfig::movingPoint.y;
 
 		if (CTextManager::status > 0)
 		{
 			if (CTextManager::status == 1)
 			{
 				CTextManager::status = 2;
-				CTextManager::CreateInput(hWnd, x, y, memory);
-				CTextManager::scale = CWindowConfig::scale;
+				CTextManager::CreateInput(hWnd, memory, x, y);
 			}
 		}
 
@@ -652,8 +681,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		if (isDrawing)
 		{
 			isDrawing = false;
-			CPaintConfig::DrawPrimitive(memory, x, y, a, b);
-			CPaintConfig::DrawPrimitive(CMetafileManager::mdc, x, y, a, b);		
+			CPaintConfig::DrawPrimitive(memory, (x - CWindowConfig::movingPoint.x) * CWindowConfig::scale, (y - CWindowConfig::movingPoint.y) * CWindowConfig::scale, a, b);
+			CPaintConfig::DrawPrimitive(CMetafileManager::mdc, (x - CWindowConfig::movingPoint.x) * CWindowConfig::scale, (y - CWindowConfig::movingPoint.y) * CWindowConfig::scale, a, b);
 
 		}
 		InvalidateRect(hWnd, 0, FALSE);
