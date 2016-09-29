@@ -95,7 +95,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 
     wcex.cbSize = sizeof(WNDCLASSEX);
 
-    wcex.style          = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
+	wcex.style =  CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
     wcex.lpfnWndProc    = WndProc;
     wcex.cbClsExtra     = 0;
     wcex.cbWndExtra     = 0;
@@ -117,10 +117,11 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    RECT wr = { 0, 0, CWindowConfig::width, CWindowConfig::hight };
 
-   AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, TRUE);
+   AdjustWindowRect(&wr, WS_OVERLAPPED | WS_MINIMIZEBOX | WS_SYSMENU, TRUE);
 
-   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, wr.right - wr.left, wr.bottom - wr.top, nullptr, nullptr, hInstance, nullptr);
+   HWND hWnd = CreateWindowW(szWindowClass, szTitle,
+	   WS_OVERLAPPED | WS_MINIMIZEBOX | WS_SYSMENU,
+      CW_USEDEFAULT, 0, wr.right - wr.left + 5, wr.bottom - wr.top + 30, nullptr, nullptr, hInstance, nullptr);
 
    if (!hWnd)
    {
@@ -632,7 +633,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			if (isPolygon == 2)
 			{
 				CLineDrawer lineDrawer;
-				lineDrawer.Draw(CMetafileManager::mdc, xPolygon, yPolygon, LOWORD(lParam), HIWORD(lParam));
+				lineDrawer.Draw(CMetafileManager::mdc, (xPolygon - CWindowConfig::movingPoint.x) * CWindowConfig::scale, (yPolygon - CWindowConfig::movingPoint.y) * CWindowConfig::scale, (x - CWindowConfig::movingPoint.x) * CWindowConfig::scale, (y - CWindowConfig::movingPoint.y) * CWindowConfig::scale);
 			}
 			if (isPolygon == 1)
 			{
