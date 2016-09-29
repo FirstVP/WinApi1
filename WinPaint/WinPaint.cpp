@@ -1,6 +1,3 @@
-// WinPaint.cpp: определяет точку входа для приложения.
-//
-
 #include "stdafx.h"
 #define _USE_MATH_DEFINES
 #include <cmath>
@@ -25,12 +22,15 @@ HWND mainWindow;
 HWND clockWindow;
 WCHAR szTitle[MAX_LOADSTRING];                  
 WCHAR szWindowClass[MAX_LOADSTRING];          
-WCHAR szTitleClock[MAX_LOADSTRING] = L"Clock";
-WCHAR szWindowClassClock[MAX_LOADSTRING] = L"Clock";
+WCHAR szTitleClock[MAX_LOADSTRING];
+WCHAR szWindowClassClock[MAX_LOADSTRING];
 WCHAR szTempFilePath[MAX_LOADSTRING];
 
 HDC memory, secondMemory;
-HBITMAP memoryBitmap, secondMemoryBitmap;
+
+CTextManager* textManager = new CTextManager();
+
+
 bool isDrawing;
 char isPrinting;
 char isPolygon;
@@ -64,6 +64,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_WINPAINT, szWindowClass, MAX_LOADSTRING);
+	LoadStringW(hInstance, IDS_CLOCK_TITLE, szTitleClock, MAX_LOADSTRING);
+	LoadStringW(hInstance, IDC_CLOCK, szWindowClassClock, MAX_LOADSTRING);
+
     RegisterClass(hInstance);
 	RegisterClassClock(hInstance);
   
@@ -215,6 +218,7 @@ int Print(int x, int y, int a, int b)
 
 	if (!PrintDlg(&prDlg))
 	{
+		isPrinting = 0;
 		MessageBox(NULL, L"Canсelled", L"Print", MB_OK | MB_ICONERROR);
 		return -1;
 	}
@@ -234,7 +238,6 @@ int Print(int x, int y, int a, int b)
 
 	EndDoc(hPrinter);
 	DeleteDC(hPrinter);
-	isPrinting = 0;
 	return 0;
 }
 
@@ -384,8 +387,8 @@ void ShowOpenDialog(HWND hWnd)
 
 void InitializeTextConfiguration(HDC hdc)
 {
-	CTextManager::Initialize(hdc);
-	CTextManager::Initialize(CMetafileManager::mdc);
+	textManager->Initialize(hdc);
+	textManager->Initialize(CMetafileManager::mdc);
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -394,6 +397,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
 	case WM_CREATE:
 	    {
+		    HBITMAP memoryBitmap, secondMemoryBitmap;
 			InitializeWindow(hWnd);
 			InitializePath();
 			CreateNewLayer(hWnd, &memory, &memoryBitmap, CWindowConfig::width, CWindowConfig::hight);
@@ -409,25 +413,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{
 		case VK_ESCAPE:
 		{
-			if (CTextManager::status == 2)
+			if (textManager->GetStatus() == TEXT_EDIT)
 			{				
-				CTextManager::DeleteInput();
+				textManager->DeleteInput();
 			}
 			break;
 		}
 		case VK_BACK:
 		{
-			CTextManager::DeleteChar();
+			textManager->DeleteChar();
 			break;
 		}
 		case VK_RIGHT:
 		{
-			CTextManager::IncPosition();
+			textManager->IncPosition();
 			break;
 		}
 		case VK_LEFT:
 		{
-			CTextManager::DecPosition();
+			textManager->DecPosition();
 			break;
 		}
 		default:
@@ -438,7 +442,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	case WM_CHAR:
 	{
-		if (CTextManager::status == 2)
+		if (textManager->GetStatus() == TEXT_EDIT)
 		{
 			wchar_t ch;
 			switch (wParam)
@@ -452,7 +456,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			default:
 				ch = (wchar_t)wParam;
-				CTextManager::InsertChar(&ch);		
+				textManager->InsertChar(&ch);		
 				InvalidateRect(hWnd, 0, FALSE);
 				UpdateWindow(hWnd);
 			}		
@@ -474,16 +478,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case IDM_SAVEAS:
 			{
 				ShowSaveDialog(hWnd);
+				BringWindowToTop(clockWindow);
 				break;
 			}         
 			case IDM_OPEN:
 			{
 				ShowOpenDialog(hWnd);
+				BringWindowToTop(clockWindow);
 				break;
 			}
 			case ID_TOOLS_POLYGON:
 			{
-				CTextManager::DeleteInput();
+				textManager->DeleteInput();
 				isPrinting = 0;
 				isPolygon = 1;
 				isPencil = false;
@@ -491,7 +497,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			case ID_TOOLS_PENCIL:
 			{
-				CTextManager::DeleteInput();
+				textManager->DeleteInput();
 				isPrinting = 0;
 				isPolygon = 0;
 				isPencil = true;
@@ -500,7 +506,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case ID_TOOLS_LINE:
 			{
 				CPaintConfig::ChoosePrimitiveDrawer(new CLineDrawer());
-				CTextManager::DeleteInput();
+				textManager->DeleteInput();
 				isPrinting = 0;
 				isPolygon = 0;
 				isPencil = false;
@@ -509,7 +515,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case ID_TOOLS_TRIANGLE:
 			{
 				CPaintConfig::ChoosePrimitiveDrawer(new CTriangleDrawer());
-				CTextManager::DeleteInput();
+				textManager->DeleteInput();
 				isPrinting = 0;
 				isPolygon = 0;
 				isPencil = false;
@@ -518,7 +524,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case ID_TOOLS_ELLIPSE:
 			{
 				CPaintConfig::ChoosePrimitiveDrawer(new CEllipseDrawer());
-				CTextManager::DeleteInput();
+				textManager->DeleteInput();
 				isPrinting = 0;
 				isPolygon = 0;
 				isPencil = false;
@@ -527,7 +533,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case ID_TOOLS_RECTANGLE:
 			{
 				CPaintConfig::ChoosePrimitiveDrawer(new CRectangleDrawer());
-				CTextManager::DeleteInput();
+				textManager->DeleteInput();
 				isPrinting = 0;
 				isPolygon = 0;
 				isPencil = false;
@@ -535,8 +541,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}					
 			case ID_TOOLS_TEXT:
 			{
-				CTextManager::DeleteInput();
-				CTextManager::status = 1;
+				textManager->DeleteInput();
+				textManager->SetStatus(TEXT_PLACED);
 				isPrinting = 0;
 				isPolygon = 0;
 				isPencil = false;
@@ -552,10 +558,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				break;
 			case ID_COLOR_CHOOSECOLOR:
 				OpenColorDialog(hWnd);
+				BringWindowToTop(clockWindow);
 				break;
 			case IDM_PRINT:
 				isPencil = false;
-				CTextManager::DeleteInput();
+				textManager->DeleteInput();
 				isPrinting = 0;
 				isPolygon = 0;
 				isPrinting = 1;			
@@ -644,12 +651,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		x += CWindowConfig::movingPoint.x;
 		y += CWindowConfig::movingPoint.y;
 
-		if (CTextManager::status > 0)
+		if (textManager->GetStatus() > TEXT_NO)
 		{
-			if (CTextManager::status == 1)
+			if (textManager->GetStatus() == TEXT_PLACED)
 			{
-				CTextManager::status = 2;
-				CTextManager::CreateInput(hWnd, memory, x, y);
+				textManager->SetStatus(TEXT_EDIT);
+				textManager->CreateInput(hWnd, memory, x, y);
 			}
 		}
 
@@ -678,7 +685,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			yPolygon = y;
 		}
 
-		if (isPrinting + isPolygon + CTextManager::status > 0)
+		if (isPrinting + isPolygon + textManager->GetStatus() > 0)
 			isDrawing = false;
 		else
 			isDrawing = true;
@@ -708,7 +715,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		{					
 			isPrinting = 3;
 			BitBlt(memory, 0, 0, CWindowConfig::width, CWindowConfig::hight, secondMemory, 0, 0, SRCCOPY);			
-			Print(xPrint, yPrint, a, b);		
+			Print(xPrint, yPrint, a, b);	
+			ShowWindow(clockWindow, SW_RESTORE);
+			BringWindowToTop(clockWindow);
 		}			
 		else
 		if (isDrawing)
@@ -716,10 +725,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			isDrawing = false;
 			CPaintConfig::DrawPrimitive(memory, (x - CWindowConfig::movingPoint.x) * CWindowConfig::scale, (y - CWindowConfig::movingPoint.y) * CWindowConfig::scale, a, b);
 			CPaintConfig::DrawPrimitive(CMetafileManager::mdc, (x - CWindowConfig::movingPoint.x) * CWindowConfig::scale, (y - CWindowConfig::movingPoint.y) * CWindowConfig::scale, a, b);
-
 		}
+		
 		InvalidateRect(hWnd, 0, FALSE);
 		UpdateWindow(hWnd);
+		
 	}
 	break;
 	case WM_MOUSEWHEEL:
@@ -780,11 +790,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				Rectangle(hdc, -1, -1, CWindowConfig::width + 1, CWindowConfig::hight + 1);
 				isMoving = false;	
 			}
-			if (CTextManager::status == 2)
+			if (textManager->GetStatus() == TEXT_EDIT)
 			{
 				BitBlt(memory, 0, 0, CWindowConfig::width, CWindowConfig::hight, secondMemory, 0, 0, SRCCOPY);
-				CTextManager::OutText(memory);
-				CTextManager::UpdateCaret(hWnd, memory);
+				textManager->OutText(memory);
+				textManager->UpdateCaret(hWnd, memory);
+			}
+
+
+			if (textManager->GetStatus() + isPolygon + int(isPencil) + isPrinting + int(isDrawing))
+				ShowWindow(clockWindow, SW_HIDE); 
+			else
+				
+			{
+				ShowWindow(clockWindow, SW_RESTORE);
+				BringWindowToTop(clockWindow);
 			}
 
 			BitBlt(hdc, 0, 0, CWindowConfig::width, CWindowConfig::hight, memory, 0, 0, SRCCOPY);
@@ -794,7 +814,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         break;
 	case WM_ACTIVATE:
 	{
-		//BringWindowToTop(clockWindow);
+		BringWindowToTop(clockWindow);
 		break;
 	}
 	case WM_MOVE:
@@ -802,7 +822,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		RECT rc;
 		GetWindowRect(hWnd, &rc);
 		MoveWindow(clockWindow, rc.right - CWindowConfig::widthClock - CLOCK_POSITION_CORRECTION_X, rc.top + CLOCK_POSITION_CORRECTION_Y, CWindowConfig::widthClock, CWindowConfig::hightClock, true);
-		UpdateWindow(clockWindow);		
+		UpdateWindow(clockWindow);	
 		break;
 	}
     case WM_DESTROY:
@@ -902,7 +922,6 @@ LRESULT CALLBACK WndProcClock(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPa
 	{
 	case WM_MOVE:
 	{
-		BringWindowToTop(hWnd);
 		break;
 	}
 	case WM_SIZE:
@@ -913,11 +932,11 @@ LRESULT CALLBACK WndProcClock(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPa
 	}
 	case WM_CREATE:
 	{
+
 		SetTimer(hWnd, ID_TIMER, 1000, NULL);
 		GetLocalTime(&st);
 		stPrevious = st;
 		
-		//SetParent(hWnd, mainWindow);
 		DWORD style = GetWindowLong(hWnd, GWL_STYLE);
 		style &= ~(WS_CAPTION);
 		style |= WS_CHILD;
@@ -966,7 +985,6 @@ LRESULT CALLBACK WndProcClock(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPa
 		
 	case WM_DESTROY:
 		KillTimer(hWnd, ID_TIMER);
-		PostQuitMessage(0);
 		break;
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);

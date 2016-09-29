@@ -3,14 +3,6 @@
 #include "MetafileManager.h"
 #include "TextManager.h"
 
-char CTextManager::status = 0;
-TEXTMETRIC CTextManager::tm;
-std::wstring CTextManager::buffer;
-int CTextManager::position = 0;
-int CTextManager::x = 0;
-int CTextManager::y = 0;
-int CTextManager::charHeight = 0;
-
 CTextManager::CTextManager()
 {
 }
@@ -19,6 +11,16 @@ void CTextManager::Initialize(HDC hdc)
 {
 	GetTextMetrics(hdc, &tm);
 	charHeight = tm.tmHeight;
+}
+
+char CTextManager::GetStatus()
+{
+	return status;
+}
+
+void CTextManager::SetStatus(char value)
+{
+	status = value;
 }
 
 void CTextManager::CreateInput(HWND hWnd, HDC hdc, int a, int b)
@@ -95,6 +97,10 @@ void CTextManager::OutText(HDC hdc)
 	SetRect(&rc, (x - CWindowConfig::movingPoint.x)*CWindowConfig::scale, (y - CWindowConfig::movingPoint.y)*CWindowConfig::scale,
 		(x - CWindowConfig::movingPoint.x)*CWindowConfig::scale + size.cx, (y - CWindowConfig::movingPoint.y)*CWindowConfig::scale+ size.cy);
 	wchar_t* text = const_cast<wchar_t*>(buffer.c_str());
+
+	HFONT hFont = CreateFont(charHeight, 0, 0, 0, 0, TRUE, 0, 0, 0, 0, 0, 0, 0, L"Times New Roman");
+	SelectObject(hdc, hFont);
+
 	DrawText(hdc, text, -1, &rc, DT_NOCLIP);
 }
 

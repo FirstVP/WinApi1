@@ -9,3 +9,4 @@
 #define NORMAL_LINE 5
 #define THICK_LINE 7
 #define TRIANGLE_POINTS_COUNT 3 
+
