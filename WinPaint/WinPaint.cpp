@@ -16,10 +16,14 @@
 
 #define MAX_LOADSTRING 100
 
-// Глобальные переменные:
-HINSTANCE hInst;                                // текущий экземпляр
-WCHAR szTitle[MAX_LOADSTRING];                  // Текст строки заголовка
-WCHAR szWindowClass[MAX_LOADSTRING];            // имя класса главного окна
+
+HINSTANCE hInst;                                
+HWND mainWindow;
+HWND clockWindow;
+WCHAR szTitle[MAX_LOADSTRING];                  
+WCHAR szWindowClass[MAX_LOADSTRING];          
+WCHAR szTitleClock[MAX_LOADSTRING] = L"Clock";
+WCHAR szWindowClassClock[MAX_LOADSTRING] = L"Clock";
 WCHAR szTempFilePath[MAX_LOADSTRING];
 
 HDC memory, secondMemory;
@@ -40,12 +44,11 @@ int yPrint = 0;
 int xPolygon = 0;
 int yPolygon = 0;
 
-
-
-// Отправить объявления функций, включенных в этот модуль кода:
-ATOM                MyRegisterClass(HINSTANCE hInstance);
+ATOM                RegisterClass(HINSTANCE hInstance);
+ATOM                RegisterClassClock(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK    WndProcClock(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -56,14 +59,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
-    // TODO: разместите код здесь.
-
-    // Инициализация глобальных строк
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_WINPAINT, szWindowClass, MAX_LOADSTRING);
-    MyRegisterClass(hInstance);
-
-    // Выполнить инициализацию приложения:
+    RegisterClass(hInstance);
+	RegisterClassClock(hInstance);
+  
     if (!InitInstance (hInstance, nCmdShow))
     {
         return FALSE;
@@ -73,7 +73,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     MSG msg;
 
-    // Цикл основного сообщения:
     while (GetMessage(&msg, nullptr, 0, 0))
     {
         if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
@@ -89,7 +88,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 
 
-ATOM MyRegisterClass(HINSTANCE hInstance)
+ATOM RegisterClass(HINSTANCE hInstance)
 {
     WNDCLASSEXW wcex;
 
@@ -110,6 +109,27 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     return RegisterClassExW(&wcex);
 }
 
+ATOM RegisterClassClock(HINSTANCE hInstance)
+{
+	WNDCLASSEXW wcex;
+
+	wcex.cbSize = sizeof(WNDCLASSEX);
+
+	wcex.style = CS_HREDRAW | CS_VREDRAW;
+	wcex.lpfnWndProc = WndProcClock;
+	wcex.cbClsExtra = 0;
+	wcex.cbWndExtra = 0;
+	wcex.hInstance = hInstance;
+	wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_WINPAINT));
+	wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
+	wcex.hbrBackground = (HBRUSH)(COLOR_GRAYTEXT + 1);
+	wcex.lpszMenuName = NULL;
+	wcex.lpszClassName = szWindowClassClock;
+	wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
+
+	return RegisterClassExW(&wcex);
+}
+
 
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
@@ -121,15 +141,27 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    HWND hWnd = CreateWindowW(szWindowClass, szTitle,
 	   WS_OVERLAPPED | WS_MINIMIZEBOX | WS_SYSMENU,
-      CW_USEDEFAULT, 0, wr.right - wr.left + 5, wr.bottom - wr.top + 30, nullptr, nullptr, hInstance, nullptr);
-
+      0, 0, wr.right - wr.left + 5, wr.bottom - wr.top + 30, nullptr, nullptr, hInstance, nullptr);
    if (!hWnd)
    {
       return FALSE;
    }
-
+   mainWindow = hWnd;
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);  
+
+   HWND hWndClock = CreateWindowW(szWindowClassClock, szTitleClock,
+	   WS_OVERLAPPED,
+	   CW_USEDEFAULT, 0, 100, 100, nullptr, nullptr, hInstance, nullptr);
+
+   if (!hWndClock)
+   {
+	   return FALSE;
+   }
+   clockWindow = hWndClock;
+   ShowWindow(hWndClock, nCmdShow);
+   UpdateWindow(hWndClock);  
+
 
    return TRUE;  
 }
@@ -757,6 +789,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			
         }
         break;
+	case WM_ACTIVATE:
+	{
+		BringWindowToTop(clockWindow);
+		break;
+	}
+	case WM_MOVE:
+	{
+		RECT rc;
+		GetWindowRect(mainWindow, &rc);
+		MoveWindow(clockWindow, rc.right - CWindowConfig::widthClock - 4, rc.top + 49, CWindowConfig::widthClock, CWindowConfig::hightClock, true);
+		UpdateWindow(clockWindow);		
+		break;
+	}
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
@@ -764,6 +809,55 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
     return 0;
+}
+
+
+LRESULT CALLBACK WndProcClock(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	switch (message)
+	{
+	case WM_MOVE:
+	{
+		BringWindowToTop(hWnd);
+	}
+	case WM_CREATE:
+	{
+		SetParent(hWnd, clockWindow); 
+		DWORD style = GetWindowLong(hWnd, GWL_STYLE);
+		style &= ~( WS_CAPTION); 
+		style |= WS_CHILD; 
+		SetWindowLong(hWnd, GWL_STYLE, style); 
+		RECT rc; 
+		GetWindowRect(mainWindow, &rc);
+		MoveWindow(hWnd, rc.right - CWindowConfig::widthClock - 4, rc.top+49, CWindowConfig::widthClock, CWindowConfig::hightClock, true);
+		UpdateWindow(hWnd);
+		break;
+	}
+	case WM_COMMAND:
+	{
+		int wmId = LOWORD(wParam);
+		switch (wmId)
+		{
+		default:
+			return DefWindowProc(hWnd, message, wParam, lParam);
+		}
+	}
+	break;
+	case WM_PAINT:
+	{
+		PAINTSTRUCT ps;
+		HDC hdc = BeginPaint(hWnd, &ps);
+
+		EndPaint(hWnd, &ps);
+	}
+	break;
+	case WM_DESTROY:
+		PostQuitMessage(0);
+		break;
+	default:
+		return DefWindowProc(hWnd, message, wParam, lParam);
+	}
+	return 0;
 }
 
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)

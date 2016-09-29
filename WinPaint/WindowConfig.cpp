@@ -3,6 +3,8 @@
 
 int CWindowConfig::hight = 500;
 int CWindowConfig::width = 1000;
+int CWindowConfig::hightClock = 100;
+int CWindowConfig::widthClock = 100;
 double CWindowConfig::scale = 1;
 POINT CWindowConfig::movingPoint;
 
