@@ -794,14 +794,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         break;
 	case WM_ACTIVATE:
 	{
-		BringWindowToTop(clockWindow);
+		//BringWindowToTop(clockWindow);
 		break;
 	}
 	case WM_MOVE:
 	{
 		RECT rc;
 		GetWindowRect(hWnd, &rc);
-		MoveWindow(clockWindow, rc.right - CWindowConfig::widthClock, rc.top, CWindowConfig::widthClock, CWindowConfig::hightClock, true);
+		MoveWindow(clockWindow, rc.right - CWindowConfig::widthClock - CLOCK_POSITION_CORRECTION_X, rc.top + CLOCK_POSITION_CORRECTION_Y, CWindowConfig::widthClock, CWindowConfig::hightClock, true);
 		UpdateWindow(clockWindow);		
 		break;
 	}
@@ -916,17 +916,17 @@ LRESULT CALLBACK WndProcClock(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPa
 		SetTimer(hWnd, ID_TIMER, 1000, NULL);
 		GetLocalTime(&st);
 		stPrevious = st;
-		break;
-		/*SetParent(hWnd, mainWindow);
+		
+		//SetParent(hWnd, mainWindow);
 		DWORD style = GetWindowLong(hWnd, GWL_STYLE);
 		style &= ~(WS_CAPTION);
 		style |= WS_CHILD;
 		SetWindowLong(hWnd, GWL_STYLE, style);
 		RECT rc;
 		GetWindowRect(mainWindow, &rc);
-		MoveWindow(hWnd, rc.right - CWindowConfig::widthClock, rc.top, CWindowConfig::widthClock, CWindowConfig::hightClock, true);
+		MoveWindow(hWnd, rc.right - CWindowConfig::widthClock - CLOCK_POSITION_CORRECTION_X, rc.top + CLOCK_POSITION_CORRECTION_Y, CWindowConfig::widthClock, CWindowConfig::hightClock, true);
 		UpdateWindow(hWnd);
-		break;*/
+		break;
 	}
 	case WM_TIMER:
 	{
