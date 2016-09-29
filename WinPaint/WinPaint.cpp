@@ -2,6 +2,8 @@
 //
 
 #include "stdafx.h"
+#define _USE_MATH_DEFINES
+#include <cmath>
 #include "string"
 #include "PaintConfig.h"
 #include "WindowConfig.h"
@@ -13,8 +15,9 @@
 #include "MetafileManager.h"
 #include "WinPaint.h"
 
-
 #define MAX_LOADSTRING 100
+#define ID_TIMER    1
+#define TWOPI       (2 * M_PI)
 
 
 HINSTANCE hInst;                                
@@ -122,7 +125,7 @@ ATOM RegisterClassClock(HINSTANCE hInstance)
 	wcex.hInstance = hInstance;
 	wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_WINPAINT));
 	wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
-	wcex.hbrBackground = (HBRUSH)(COLOR_GRAYTEXT + 1);
+	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 	wcex.lpszMenuName = NULL;
 	wcex.lpszClassName = szWindowClassClock;
 	wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
@@ -152,7 +155,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    HWND hWndClock = CreateWindowW(szWindowClassClock, szTitleClock,
 	   WS_OVERLAPPED,
-	   CW_USEDEFAULT, 0, 100, 100, nullptr, nullptr, hInstance, nullptr);
+	   CW_USEDEFAULT, 0, CWindowConfig::widthClock, CWindowConfig::hightClock, nullptr, nullptr, hInstance, nullptr);
 
    if (!hWndClock)
    {
@@ -797,8 +800,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_MOVE:
 	{
 		RECT rc;
-		GetWindowRect(mainWindow, &rc);
-		MoveWindow(clockWindow, rc.right - CWindowConfig::widthClock - 4, rc.top + 49, CWindowConfig::widthClock, CWindowConfig::hightClock, true);
+		GetWindowRect(hWnd, &rc);
+		MoveWindow(clockWindow, rc.right - CWindowConfig::widthClock, rc.top, CWindowConfig::widthClock, CWindowConfig::hightClock, true);
 		UpdateWindow(clockWindow);		
 		break;
 	}
@@ -812,46 +815,157 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 
+void SetIsotropic(HDC hdc, int cxClient, int cyClient)
+{
+	SetMapMode(hdc, MM_ISOTROPIC);
+	SetWindowExtEx(hdc, 1000, 1000, NULL);
+	SetViewportExtEx(hdc, cxClient / 2, -cyClient / 2, NULL);
+	SetViewportOrgEx(hdc, cxClient / 2, cyClient / 2, NULL);
+}
+
+void RotatePoint(POINT pt[], int iNum, int iAngle)
+{
+	int   i;
+	POINT ptTemp;
+
+	for (i = 0; i < iNum; i++)
+	{
+		ptTemp.x = (int)(pt[i].x * cos(TWOPI * iAngle / 360) +
+			pt[i].y * sin(TWOPI * iAngle / 360));
+
+		ptTemp.y = (int)(pt[i].y * cos(TWOPI * iAngle / 360) -
+			pt[i].x * sin(TWOPI * iAngle / 360));
+
+		pt[i] = ptTemp;
+	}
+}
+
+void DrawClock(HDC hdc)
+{
+	int   iAngle;
+	POINT pt[3];
+
+	for (iAngle = 0; iAngle < 360; iAngle += 6)
+	{
+		pt[0].x = 0;
+		pt[0].y = 900;
+
+		RotatePoint(pt, 1, iAngle);
+
+		pt[2].x = pt[2].y = iAngle % 5 ? 33 : 100;
+
+		pt[0].x -= pt[2].x / 2;
+		pt[0].y -= pt[2].y / 2;
+
+		pt[1].x = pt[0].x + pt[2].x;
+		pt[1].y = pt[0].y + pt[2].y;
+
+		SelectObject(hdc, GetStockObject(BLACK_BRUSH));
+
+		Ellipse(hdc, pt[0].x, pt[0].y, pt[1].x, pt[1].y);
+	}
+}
+
+void DrawHands(HDC hdc, SYSTEMTIME * pst, BOOL fChange)
+{
+	static POINT pt[3][5] = { 0, -150, 100, 0, 0, 600, -100, 0, 0, -150,
+		0, -200,  50, 0, 0, 800,  -50, 0, 0, -200,
+		0,    0,   0, 0, 0,   0,    0, 0, 0,  800 };
+	int          i, iAngle[3];
+	POINT        ptTemp[3][5];
+
+	iAngle[0] = (pst->wHour * 30) % 360 + pst->wMinute / 2;
+	iAngle[1] = pst->wMinute * 6;
+	iAngle[2] = pst->wSecond * 6;
+
+	memcpy(ptTemp, pt, sizeof(pt));
+
+	for (i = fChange ? 0 : 2; i < 3; i++)
+	{
+		RotatePoint(ptTemp[i], 5, iAngle[i]);
+
+		Polyline(hdc, ptTemp[i], 5);
+	}
+}
+
+
 LRESULT CALLBACK WndProcClock(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+	static int        cxClient, cyClient;
+	static SYSTEMTIME stPrevious;
+	BOOL              fChange;
+	HDC               hdc;
+	PAINTSTRUCT       ps;
+	SYSTEMTIME        st;
+
 	switch (message)
 	{
 	case WM_MOVE:
 	{
 		BringWindowToTop(hWnd);
+		break;
+	}
+	case WM_SIZE:
+	{
+		cxClient = LOWORD(lParam);
+		cyClient = HIWORD(lParam);
+		return 0;
 	}
 	case WM_CREATE:
 	{
-		SetParent(hWnd, clockWindow); 
-		DWORD style = GetWindowLong(hWnd, GWL_STYLE);
-		style &= ~( WS_CAPTION); 
-		style |= WS_CHILD; 
-		SetWindowLong(hWnd, GWL_STYLE, style); 
-		RECT rc; 
-		GetWindowRect(mainWindow, &rc);
-		MoveWindow(hWnd, rc.right - CWindowConfig::widthClock - 4, rc.top+49, CWindowConfig::widthClock, CWindowConfig::hightClock, true);
-		UpdateWindow(hWnd);
+		SetTimer(hWnd, ID_TIMER, 1000, NULL);
+		GetLocalTime(&st);
+		stPrevious = st;
 		break;
+		/*SetParent(hWnd, mainWindow);
+		DWORD style = GetWindowLong(hWnd, GWL_STYLE);
+		style &= ~(WS_CAPTION);
+		style |= WS_CHILD;
+		SetWindowLong(hWnd, GWL_STYLE, style);
+		RECT rc;
+		GetWindowRect(mainWindow, &rc);
+		MoveWindow(hWnd, rc.right - CWindowConfig::widthClock, rc.top, CWindowConfig::widthClock, CWindowConfig::hightClock, true);
+		UpdateWindow(hWnd);
+		break;*/
 	}
-	case WM_COMMAND:
+	case WM_TIMER:
 	{
-		int wmId = LOWORD(wParam);
-		switch (wmId)
-		{
-		default:
-			return DefWindowProc(hWnd, message, wParam, lParam);
-		}
-	}
-	break;
+		GetLocalTime(&st);
+
+		fChange = st.wHour != stPrevious.wHour ||
+			st.wMinute != stPrevious.wMinute;
+
+		hdc = GetDC(hWnd);
+
+		SetIsotropic(hdc, cxClient, cyClient);
+
+		SelectObject(hdc, GetStockObject(WHITE_PEN));
+		DrawHands(hdc, &stPrevious, fChange);
+
+		SelectObject(hdc, GetStockObject(BLACK_PEN));
+		DrawHands(hdc, &st, TRUE);
+
+		ReleaseDC(hWnd, hdc);
+
+		stPrevious = st;
+		return 0;
+	}		
+
 	case WM_PAINT:
 	{
-		PAINTSTRUCT ps;
-		HDC hdc = BeginPaint(hWnd, &ps);
+		hdc = BeginPaint(hWnd, &ps);
+
+		SetIsotropic(hdc, cxClient, cyClient);
+
+		DrawClock(hdc);
+		DrawHands(hdc, &stPrevious, TRUE);
 
 		EndPaint(hWnd, &ps);
+		return 0;
 	}
-	break;
+		
 	case WM_DESTROY:
+		KillTimer(hWnd, ID_TIMER);
 		PostQuitMessage(0);
 		break;
 	default:
