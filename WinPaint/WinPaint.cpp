@@ -10,7 +10,10 @@
 #include "EllipseDrawer.h"
 #include "TriangleDrawer.h"
 #include "TextManager.h"
+#include "Clock.h"
+#include "PolygonDrawer.h"
 #include "MetafileManager.h"
+#include "PrintRectangleDrawer.h"
 #include "WinPaint.h"
 
 
@@ -27,18 +30,15 @@ HDC memory, secondMemory;
 
 CTextManager* textManager = new CTextManager();
 CMetafileManager* metafileManager = new CMetafileManager();
+CClock* clock = new CClock();
+CPolygonDrawer* polygonDrawer = new CPolygonDrawer();
+CPrintRectangleDrawer* printDrawer = new CPrintRectangleDrawer();
 
-char isPrinting;
-char isPolygon;
 bool isPencil;
 
 
 int xPencil = 0;
 int yPencil = 0;
-int xPrint = 0;
-int yPrint = 0;
-int xPolygon = 0;
-int yPolygon = 0;
 
 ATOM                RegisterClass(HINSTANCE hInstance);
 ATOM                RegisterClassClock(HINSTANCE hInstance);
@@ -191,11 +191,11 @@ void InitializePath()
 
 void InitializeWindow(HWND hWnd)
 {
-	CWindowStatus::CWindowStatus::CWindowStatus::isDrawing = false;
-	isPrinting = 0;
-	isPolygon = 0;
-	CWindowStatus::CWindowStatus::isMoving = false;
-	CWindowStatus::CWindowStatus::isScaling = false;
+	CWindowStatus::isDrawing = false;
+	CPrintRectangleDrawer::status = PRINT_NO;
+	CPolygonDrawer::status = POLYGON_NO;
+	CWindowStatus::isMoving = false;
+	CWindowStatus::isScaling = false;
 	isPencil = false;
 	CWindowStatus::movingPoint.x = 0;
 	CWindowStatus::movingPoint.y = 0;
@@ -209,7 +209,7 @@ int ShowPrintDialog(int x, int y, int a, int b)
 	prDlg.Flags = PD_RETURNDC;
 	if (!PrintDlg(&prDlg))
 	{
-		isPrinting = 0;
+		CPrintRectangleDrawer::status = PRINT_NO;
 		MessageBox(NULL, L"Canñelled", L"Print", MB_OK | MB_ICONERROR);
 		return -1;
 	}
@@ -232,7 +232,7 @@ int CreateNewLayer(HWND hWnd, HDC* newDC, HBITMAP* newBmp, int width, int hight)
 	*newDC = CreateCompatibleDC(hdc);
 	*newBmp = CreateCompatibleBitmap(hdc, width, hight);
 	SelectObject(*newDC, *newBmp);
-	HPEN printPen = CreatePen(PS_SOLID, 5, RGB(0, 0, 0)); // change to wh-0
+	HPEN printPen = CreatePen(PS_SOLID, 5, RGB(0, 0, 0));
 	SelectObject(*newDC, printPen);
 	Rectangle(*newDC, -1, -1, width + 1, hight + 1);
 	ReleaseDC(hWnd, hdc);
@@ -256,9 +256,9 @@ void OpenColorDialog(HWND hWnd, bool isBrush)
 	if (ChooseColor(&cc) == TRUE)
 	{
 		if (isBrush)
-			CPaintConfig::ChooseBrushColor(cc.rgbResult);
+			CPaintManager::ChooseBrushColor(cc.rgbResult);
 		else
-			CPaintConfig::ChooseFillColor(cc.rgbResult);
+			CPaintManager::ChooseFillColor(cc.rgbResult);
 	}
 }
 
@@ -334,7 +334,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			CreateNewLayer(hWnd, &memory, &memoryBitmap, CWindowStatus::width, CWindowStatus::hight);
 			CreateNewLayer(hWnd, &secondMemory, &secondMemoryBitmap, CWindowStatus::width, CWindowStatus::hight);
 			metafileManager->CreateMetafileContext(hWnd, GetDC(hWnd), TEMPORARY_METAFILE_PATH);
-			CPaintConfig::ChooseThickness(THIN_LINE);
+			CPaintManager::ChooseThickness(THIN_LINE);
 			InitializeTextConfiguration(memory);
 		}
 		break;
@@ -400,13 +400,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
 	case WM_RBUTTONDBLCLK:
 	{
-		CPaintConfig::checkedPoint.x = LOWORD(lParam);
-		CPaintConfig::checkedPoint.y = HIWORD(lParam);
-		CPaintConfig::checkedPoint.x /= CWindowStatus::scale;
-		CPaintConfig::checkedPoint.y /= CWindowStatus::scale;
-		CPaintConfig::checkedPoint.x += CWindowStatus::movingPoint.x;
-		CPaintConfig::checkedPoint.y += CWindowStatus::movingPoint.y;
-		CPaintConfig::Fill(memory);
+		CPaintManager::checkedPoint.x = LOWORD(lParam);
+		CPaintManager::checkedPoint.y = HIWORD(lParam);
+		CPaintManager::checkedPoint.x /= CWindowStatus::scale;
+		CPaintManager::checkedPoint.y /= CWindowStatus::scale;
+		CPaintManager::checkedPoint.x += CWindowStatus::movingPoint.x;
+		CPaintManager::checkedPoint.y += CWindowStatus::movingPoint.y;
+		CPaintManager::Fill(memory);
+		CPaintManager::Fill(CMetafileManager::mdc);
 		InvalidateRect(hWnd, 0, FALSE);
 		UpdateWindow(hWnd);
 	}
@@ -430,52 +431,52 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case ID_TOOLS_POLYGON:
 			{
 				textManager->DeleteInput();
-				isPrinting = 0;
-				isPolygon = 1;
+				CPrintRectangleDrawer::status = PRINT_NO;
+				CPolygonDrawer::status = POLYGON_BEGIN;
 				isPencil = false;
 				break;
 			}
 			case ID_TOOLS_PENCIL:
 			{
 				textManager->DeleteInput();
-				isPrinting = 0;
-				isPolygon = 0;
+				CPrintRectangleDrawer::status = PRINT_NO;
+				CPolygonDrawer::status = POLYGON_NO;
 				isPencil = true;
 				break;
 			}			
 			case ID_TOOLS_LINE:
 			{
-				CPaintConfig::ChoosePrimitiveDrawer(new CLineDrawer());
+				CPaintManager::ChoosePrimitiveDrawer(new CLineDrawer());
 				textManager->DeleteInput();
-				isPrinting = 0;
-				isPolygon = 0;
+				CPrintRectangleDrawer::status = PRINT_NO;
+				CPolygonDrawer::status = POLYGON_NO;
 				isPencil = false;
 				break;
 			}							
 			case ID_TOOLS_TRIANGLE:
 			{
-				CPaintConfig::ChoosePrimitiveDrawer(new CTriangleDrawer());
+				CPaintManager::ChoosePrimitiveDrawer(new CTriangleDrawer());
 				textManager->DeleteInput();
-				isPrinting = 0;
-				isPolygon = 0;
+				CPrintRectangleDrawer::status = PRINT_NO;
+				CPolygonDrawer::status = POLYGON_NO;
 				isPencil = false;
 				break;
 			}								
 			case ID_TOOLS_ELLIPSE:
 			{
-				CPaintConfig::ChoosePrimitiveDrawer(new CEllipseDrawer());
+				CPaintManager::ChoosePrimitiveDrawer(new CEllipseDrawer());
 				textManager->DeleteInput();
-				isPrinting = 0;
-				isPolygon = 0;
+				CPrintRectangleDrawer::status = PRINT_NO;
+				CPolygonDrawer::status = POLYGON_NO;
 				isPencil = false;
 				break;
 			}						
 			case ID_TOOLS_RECTANGLE:
 			{
-				CPaintConfig::ChoosePrimitiveDrawer(new CRectangleDrawer());
+				CPaintManager::ChoosePrimitiveDrawer(new CRectangleDrawer());
 				textManager->DeleteInput();
-				isPrinting = 0;
-				isPolygon = 0;
+				CPrintRectangleDrawer::status = PRINT_NO;
+				CPolygonDrawer::status = POLYGON_NO;
 				isPencil = false;
 				break;
 			}					
@@ -483,18 +484,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				textManager->DeleteInput();
 				textManager->SetStatus(TEXT_PLACED);
-				isPrinting = 0;
-				isPolygon = 0;
+				CPrintRectangleDrawer::status = PRINT_NO;
+				CPolygonDrawer::status = POLYGON_NO;
 				isPencil = false;
 			}
 			case ID_LINESETTINGS_THIN:
-				CPaintConfig::ChooseThickness(THIN_LINE);
+				CPaintManager::ChooseThickness(THIN_LINE);
 				break;
 			case ID_LINESETTINGS_NORMAL:
-				CPaintConfig::ChooseThickness(NORMAL_LINE);
+				CPaintManager::ChooseThickness(NORMAL_LINE);
 				break;
 			case ID_LINESETTINGS_THICK:
-				CPaintConfig::ChooseThickness(THICK_LINE);
+				CPaintManager::ChooseThickness(THICK_LINE);
 				break;
 			case ID_COLOR_CHOOSECOLOR:
 				OpenColorDialog(hWnd, true);
@@ -507,9 +508,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case IDM_PRINT:
 				isPencil = false;
 				textManager->DeleteInput();
-				isPrinting = 0;
-				isPolygon = 0;
-				isPrinting = 1;			
+				CPrintRectangleDrawer::status = PRINT_NO;
+				CPolygonDrawer::status = POLYGON_NO;
+				CPrintRectangleDrawer::status = PRINT_START;
 				break;
             case IDM_ABOUT:
                 DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
@@ -524,7 +525,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         break;
 	case WM_MOUSEMOVE:
 	{	
-		if (2 == isPrinting)
+		if (PRINT_SELECTING == CPrintRectangleDrawer::status)
 		{
 			CWindowStatus::CWindowStatus::isDrawing = false;
 			HPEN printPen = CreatePen(PS_DASH, 1, RGB (90, 10, 10));
@@ -533,17 +534,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			BitBlt(memory, 0, 0, CWindowStatus::width, CWindowStatus::hight, secondMemory, 0, 0, SRCCOPY);
 			int a = LOWORD(lParam);
 			int b = HIWORD(lParam);
-			if ((a > xPrint) && (b > yPrint))
-			Rectangle(memory, xPrint, yPrint, a, b);	
+			if ((a > printDrawer->checkedPoint.x) && (b > printDrawer->checkedPoint.y))
+			Rectangle(memory, printDrawer->checkedPoint.x, printDrawer->checkedPoint.y, a, b);
 		}	
-		if (2 == isPolygon)
+		if (POLYGON_PROCESS == CPolygonDrawer::status)
 		{
 			CWindowStatus::isDrawing = false;
 			BitBlt(memory, 0, 0, CWindowStatus::width, CWindowStatus::hight, secondMemory, 0, 0, SRCCOPY);
 			int a = LOWORD(lParam);
 			int b = HIWORD(lParam);
 			CLineDrawer lineDrawer;
-			lineDrawer.Draw(memory, (xPolygon - CWindowStatus::movingPoint.x) * CWindowStatus::scale, (yPolygon - CWindowStatus::movingPoint.y) * CWindowStatus::scale, a, b);
+			lineDrawer.Draw(memory, (polygonDrawer->checkedPoint.x - CWindowStatus::movingPoint.x) * CWindowStatus::scale, (polygonDrawer->checkedPoint.y- CWindowStatus::movingPoint.y) * CWindowStatus::scale, a, b);
 		}
 		if ((isPencil) && ((GetKeyState(VK_LBUTTON) & 0x100) != 0))
 		{
@@ -551,7 +552,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			int a = LOWORD(lParam);
 			int b = HIWORD(lParam);
 			CLineDrawer lineDrawer;
-			HPEN pen = CreatePen(PS_SOLID, 5, CPaintConfig::color);
+			HPEN pen = CreatePen(PS_SOLID, 5, CPaintManager::color);
 			SelectObject(memory, pen);
 			SelectObject(CMetafileManager::mdc, pen);
 			if (!((xPencil == 0) && (yPencil == 0)))
@@ -575,7 +576,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			int b = 0;
 			a = LOWORD(lParam);
 			b = HIWORD(lParam);
-			CPaintConfig::DrawPrimitive(memory, (CPaintConfig::checkedPoint.x - CWindowStatus::movingPoint.x) * CWindowStatus::scale, (CPaintConfig::checkedPoint.y - CWindowStatus::movingPoint.y) * CWindowStatus::scale, a, b);
+			CPaintManager::DrawPrimitive(memory, (CPaintManager::checkedPoint.x - CWindowStatus::movingPoint.x) * CWindowStatus::scale, (CPaintManager::checkedPoint.y - CWindowStatus::movingPoint.y) * CWindowStatus::scale, a, b);
 		}
 		InvalidateRect(hWnd, 0, FALSE);
 		UpdateWindow(hWnd);
@@ -583,53 +584,55 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	break;
 	case WM_LBUTTONDOWN:
 	{	
-		if (isPrinting != 2) BitBlt(secondMemory, 0, 0, CWindowStatus::width, CWindowStatus::hight, memory, 0, 0, SRCCOPY);
-		SelectObject(memory, CPaintConfig::pen);
-		SelectObject(memory, CPaintConfig::brush);
-		SelectObject(CMetafileManager::mdc, CPaintConfig::pen);
-		SelectObject(CMetafileManager::mdc, CPaintConfig::brush);
-		CPaintConfig::checkedPoint.x = LOWORD(lParam);
-		CPaintConfig::checkedPoint.y = HIWORD(lParam);
-		CPaintConfig::checkedPoint.x /= CWindowStatus::scale;
-		CPaintConfig::checkedPoint.y /= CWindowStatus::scale;
-		CPaintConfig::checkedPoint.x += CWindowStatus::movingPoint.x;
-		CPaintConfig::checkedPoint.y += CWindowStatus::movingPoint.y;
+		if (CPrintRectangleDrawer::status != PRINT_SELECTING) BitBlt(secondMemory, 0, 0, CWindowStatus::width, CWindowStatus::hight, memory, 0, 0, SRCCOPY);
+		SelectObject(memory, CPaintManager::pen);
+		SelectObject(memory, CPaintManager::brush);
+		SelectObject(CMetafileManager::mdc, CPaintManager::pen);
+		SelectObject(CMetafileManager::mdc, CPaintManager::brush);
+		CPaintManager::checkedPoint.x = LOWORD(lParam);
+		CPaintManager::checkedPoint.y = HIWORD(lParam);
+		CPaintManager::checkedPoint.x /= CWindowStatus::scale;
+		CPaintManager::checkedPoint.y /= CWindowStatus::scale;
+		CPaintManager::checkedPoint.x += CWindowStatus::movingPoint.x;
+		CPaintManager::checkedPoint.y += CWindowStatus::movingPoint.y;
 
 		if (textManager->GetStatus() > TEXT_NO)
 		{
 			if (textManager->GetStatus() == TEXT_PLACED)
 			{
 				textManager->SetStatus(TEXT_EDIT);
-				textManager->CreateInput(hWnd, memory, CPaintConfig::checkedPoint.x, CPaintConfig::checkedPoint.y);
+				textManager->CreateInput(hWnd, memory, CPaintManager::checkedPoint.x, CPaintManager::checkedPoint.y);
 			}
 		}
 
-		if (isPrinting > 0)
+		if (CPrintRectangleDrawer::status > PRINT_NO)
 		{
-			if (isPrinting == 1)
+			if (CPrintRectangleDrawer::status == PRINT_START)
 			{
-				isPrinting = 2;
-				xPrint = CPaintConfig::checkedPoint.x;
-				yPrint = CPaintConfig::checkedPoint.y;
+				CPrintRectangleDrawer::status = PRINT_SELECTING;
+				printDrawer->checkedPoint.x = CPaintManager::checkedPoint.x;
+				printDrawer->checkedPoint.y = CPaintManager::checkedPoint.y;
 			}				
 		}
 
-		if (isPolygon > 0)
+		if (CPolygonDrawer::status > POLYGON_NO)
 		{
-			if (isPolygon == 2)
+			if (CPolygonDrawer::status == POLYGON_PROCESS)
 			{
 				CLineDrawer lineDrawer;
-				lineDrawer.Draw(CMetafileManager::mdc, (xPolygon - CWindowStatus::movingPoint.x) * CWindowStatus::scale, (yPolygon - CWindowStatus::movingPoint.y) * CWindowStatus::scale, (CPaintConfig::checkedPoint.x - CWindowStatus::movingPoint.x) * CWindowStatus::scale, (CPaintConfig::checkedPoint.y - CWindowStatus::movingPoint.y) * CWindowStatus::scale);
+				lineDrawer.Draw(CMetafileManager::mdc, (polygonDrawer->checkedPoint.x - CWindowStatus::movingPoint.x) * CWindowStatus::scale, 
+			    (polygonDrawer->checkedPoint.y - CWindowStatus::movingPoint.y) * CWindowStatus::scale, (CPaintManager::checkedPoint.x - CWindowStatus::movingPoint.x) * CWindowStatus::scale, 
+			     (CPaintManager::checkedPoint.y - CWindowStatus::movingPoint.y) * CWindowStatus::scale);
 			}
-			if (isPolygon == 1)
+			if (CPolygonDrawer::status == POLYGON_BEGIN)
 			{
-				isPolygon = 2;
+				CPolygonDrawer::status = POLYGON_PROCESS;
 			}			
-            xPolygon = CPaintConfig::checkedPoint.x;
-			yPolygon = CPaintConfig::checkedPoint.y;
+			polygonDrawer->checkedPoint.x = CPaintManager::checkedPoint.x;
+			polygonDrawer->checkedPoint.y = CPaintManager::checkedPoint.y;
 		}
 
-		if (isPrinting + isPolygon + textManager->GetStatus() > 0)
+		if (CPrintRectangleDrawer::status + CPolygonDrawer::status + textManager->GetStatus() > 0)
 			CWindowStatus::isDrawing = false;
 		else
 			CWindowStatus::isDrawing = true;
@@ -638,10 +641,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	break;
 	case WM_RBUTTONDOWN:
 	{
-		if (isPolygon == 2)
+		if (CPolygonDrawer::status == POLYGON_PROCESS)
 		{
 			BitBlt(memory, 0, 0, CWindowStatus::width, CWindowStatus::hight, secondMemory, 0, 0, SRCCOPY);
-			isPolygon = 0;
+			CPolygonDrawer::status = POLYGON_NO;
 			InvalidateRect(hWnd, 0, FALSE);
 			UpdateWindow(hWnd);
 		}
@@ -656,11 +659,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			xPencil = 0;
 			yPencil = 0;
 		}
-		if (isPrinting == 2)
+		if (CPrintRectangleDrawer::status == PRINT_SELECTING)
 		{					
-			isPrinting = 3;
+			CPrintRectangleDrawer::status = PRINT_FINAL;
 			BitBlt(memory, 0, 0, CWindowStatus::width, CWindowStatus::hight, secondMemory, 0, 0, SRCCOPY);			
-			ShowPrintDialog(xPrint, yPrint, a, b);	
+			ShowPrintDialog(printDrawer->checkedPoint.x, printDrawer->checkedPoint.y, a, b);
 			ShowWindow(clockWindow, SW_RESTORE);
 			BringWindowToTop(clockWindow);
 		}			
@@ -668,8 +671,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		if (CWindowStatus::isDrawing)
 		{
 			CWindowStatus::isDrawing = false;
-			CPaintConfig::DrawPrimitive(memory, (CPaintConfig::checkedPoint.x - CWindowStatus::movingPoint.x) * CWindowStatus::scale, (CPaintConfig::checkedPoint.y - CWindowStatus::movingPoint.y) * CWindowStatus::scale, a, b);
-			CPaintConfig::DrawPrimitive(CMetafileManager::mdc, (CPaintConfig::checkedPoint.x - CWindowStatus::movingPoint.x) * CWindowStatus::scale, (CPaintConfig::checkedPoint.y - CWindowStatus::movingPoint.y) * CWindowStatus::scale, a, b);
+			CPaintManager::DrawPrimitive(memory, (CPaintManager::checkedPoint.x - CWindowStatus::movingPoint.x) * CWindowStatus::scale, (CPaintManager::checkedPoint.y - CWindowStatus::movingPoint.y) * CWindowStatus::scale, a, b);
+			CPaintManager::DrawPrimitive(CMetafileManager::mdc, (CPaintManager::checkedPoint.x - CWindowStatus::movingPoint.x) * CWindowStatus::scale, (CPaintManager::checkedPoint.y - CWindowStatus::movingPoint.y) * CWindowStatus::scale, a, b);
 		}
 		
 		InvalidateRect(hWnd, 0, FALSE);
@@ -742,7 +745,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 
 
-			if (textManager->GetStatus() + isPolygon + int(isPencil) + isPrinting + int(CWindowStatus::isDrawing))
+			if (textManager->GetStatus() + CPolygonDrawer::status+ int(isPencil) + CPrintRectangleDrawer::status + int(CWindowStatus::isDrawing))
 				ShowWindow(clockWindow, SW_HIDE); 
 			else
 				
@@ -779,78 +782,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 
-void SetIsotropic(HDC hdc, int cxClient, int cyClient)
-{
-	SetMapMode(hdc, MM_ISOTROPIC);
-	SetWindowExtEx(hdc, 1000, 1000, NULL);
-	SetViewportExtEx(hdc, cxClient / 2, -cyClient / 2, NULL);
-	SetViewportOrgEx(hdc, cxClient / 2, cyClient / 2, NULL);
-}
 
-void RotatePoint(POINT pt[], int iNum, int iAngle)
-{
-	int   i;
-	POINT ptTemp;
-
-	for (i = 0; i < iNum; i++)
-	{
-		ptTemp.x = (int)(pt[i].x * cos(TWOPI * iAngle / 360) +
-			pt[i].y * sin(TWOPI * iAngle / 360));
-
-		ptTemp.y = (int)(pt[i].y * cos(TWOPI * iAngle / 360) -
-			pt[i].x * sin(TWOPI * iAngle / 360));
-
-		pt[i] = ptTemp;
-	}
-}
-
-void DrawClock(HDC hdc)
-{
-	int   iAngle;
-	POINT pt[3];
-
-	for (iAngle = 0; iAngle < 360; iAngle += 6)
-	{
-		pt[0].x = 0;
-		pt[0].y = 900;
-
-		RotatePoint(pt, 1, iAngle);
-
-		pt[2].x = pt[2].y = iAngle % 5 ? 33 : 100;
-
-		pt[0].x -= pt[2].x / 2;
-		pt[0].y -= pt[2].y / 2;
-
-		pt[1].x = pt[0].x + pt[2].x;
-		pt[1].y = pt[0].y + pt[2].y;
-
-		SelectObject(hdc, GetStockObject(BLACK_BRUSH));
-
-		Ellipse(hdc, pt[0].x, pt[0].y, pt[1].x, pt[1].y);
-	}
-}
-
-void DrawHands(HDC hdc, SYSTEMTIME * pst, BOOL fChange)
-{
-	static POINT pt[3][5] = { 0, -150, 100, 0, 0, 600, -100, 0, 0, -150,
-		0, -200,  50, 0, 0, 800,  -50, 0, 0, -200,
-		0,    0,   0, 0, 0,   0,    0, 0, 0,  800 };
-	int          i, iAngle[3];
-	POINT        ptTemp[3][5];
-
-	iAngle[0] = (pst->wHour * 30) % 360 + pst->wMinute / 2;
-	iAngle[1] = pst->wMinute * 6;
-	iAngle[2] = pst->wSecond * 6;
-
-	memcpy(ptTemp, pt, sizeof(pt));
-
-	for (i = fChange ? 0 : 2; i < 3; i++)
-	{
-		RotatePoint(ptTemp[i], 5, iAngle[i]);
-
-		Polyline(hdc, ptTemp[i], 5);
-	}
-}
 
 
 LRESULT CALLBACK WndProcClock(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -900,13 +832,13 @@ LRESULT CALLBACK WndProcClock(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPa
 
 		hdc = GetDC(hWnd);
 
-		SetIsotropic(hdc, cxClient, cyClient);
+		clock->SetIsotropic(hdc, cxClient, cyClient);
 
 		SelectObject(hdc, GetStockObject(WHITE_PEN));
-		DrawHands(hdc, &stPrevious, fChange);
+		clock->DrawHands(hdc, &stPrevious, fChange);
 
 		SelectObject(hdc, GetStockObject(BLACK_PEN));
-		DrawHands(hdc, &st, TRUE);
+		clock->DrawHands(hdc, &st, TRUE);
 
 		ReleaseDC(hWnd, hdc);
 
@@ -918,10 +850,10 @@ LRESULT CALLBACK WndProcClock(HWND hWnd, UINT message, WPARAM wParam, LPARAM lPa
 	{
 		hdc = BeginPaint(hWnd, &ps);
 
-		SetIsotropic(hdc, cxClient, cyClient);
+		clock->SetIsotropic(hdc, cxClient, cyClient);
 
-		DrawClock(hdc);
-		DrawHands(hdc, &stPrevious, TRUE);
+		clock->DrawClock(hdc);
+		clock->DrawHands(hdc, &stPrevious, TRUE);
 
 		EndPaint(hWnd, &ps);
 		return 0;

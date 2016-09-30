@@ -5,60 +5,58 @@
 #include "MetafileManager.h"
 #include "math.h"
 
-CPrimitiveDrawer* CPaintConfig::drawer = new CLineDrawer();
-int CPaintConfig::thickness = 1;
-HPEN CPaintConfig::pen = CreatePen(PS_SOLID, thickness * CWindowStatus::scale, color);
-HBRUSH CPaintConfig::brush = CreateSolidBrush(color);
-COLORREF CPaintConfig::color = RGB(0, 0, 0);
-COLORREF CPaintConfig::colorFill = RGB(20, 50, 90);
-POINT CPaintConfig::checkedPoint = { 0, 0 };
+CPrimitiveDrawer* CPaintManager::drawer = new CLineDrawer();
+int CPaintManager::thickness = 1;
+HPEN CPaintManager::pen = CreatePen(PS_SOLID, thickness * CWindowStatus::scale, color);
+HBRUSH CPaintManager::brush = CreateSolidBrush(color);
+COLORREF CPaintManager::color = RGB(0, 0, 0);
+COLORREF CPaintManager::colorFill = RGB(20, 50, 90);
+POINT CPaintManager::checkedPoint = { 0, 0 };
 
-CPaintConfig::CPaintConfig()
+CPaintManager::CPaintManager()
 {
 }
 
-void CPaintConfig::ChooseBrushColor(COLORREF cc)
+void CPaintManager::ChooseBrushColor(COLORREF cc)
 {
-	CPaintConfig::color = cc;
-	CPaintConfig::pen = CreatePen(PS_SOLID, CPaintConfig::thickness * CWindowStatus::scale, CPaintConfig::color);
-	CPaintConfig::brush = CreateSolidBrush(CPaintConfig::color);
+	CPaintManager::color = cc;
+	CPaintManager::pen = CreatePen(PS_SOLID, CPaintManager::thickness * CWindowStatus::scale, CPaintManager::color);
+	CPaintManager::brush = CreateSolidBrush(CPaintManager::color);
 }
 
-void CPaintConfig::ChooseFillColor(COLORREF cc)
+void CPaintManager::ChooseFillColor(COLORREF cc)
 {
 	colorFill = cc;
 }
 
-void CPaintConfig::ChooseThickness(int value)
+void CPaintManager::ChooseThickness(int value)
 {
 	thickness = value;
 	pen = CreatePen(PS_SOLID, thickness / CWindowStatus::scale, color);
 } 
 
-void CPaintConfig::DrawPrimitive(HDC hdc, int x, int y, int x1, int y1)
+void CPaintManager::DrawPrimitive(HDC hdc, int x, int y, int x1, int y1)
 {
 	drawer->Draw(hdc, x, y, x1, y1);
 }
 
-void CPaintConfig::ChoosePrimitiveDrawer(CPrimitiveDrawer* chosenDrawer)
+void CPaintManager::ChoosePrimitiveDrawer(CPrimitiveDrawer* chosenDrawer)
 {
 	if (drawer != NULL)
 		delete (drawer);
 	drawer = chosenDrawer;	
 }
 
-void CPaintConfig::Fill(HDC hdc)
+void CPaintManager::Fill(HDC hdc)
 {
 	HBRUSH fillBrush = CreateSolidBrush(colorFill);
 	SelectObject(hdc, fillBrush);
-	SelectObject(CMetafileManager::mdc, fillBrush);
-	int correctedX = (CPaintConfig::checkedPoint.x - CWindowStatus::movingPoint.x) * CWindowStatus::scale;
-	int correctedY = (CPaintConfig::checkedPoint.y - CWindowStatus::movingPoint.y) * CWindowStatus::scale;
+	int correctedX = (CPaintManager::checkedPoint.x - CWindowStatus::movingPoint.x) * CWindowStatus::scale;
+	int correctedY = (CPaintManager::checkedPoint.y - CWindowStatus::movingPoint.y) * CWindowStatus::scale;
 	ExtFloodFill(hdc, correctedX, correctedY, GetPixel(hdc, correctedX, correctedY), FLOODFILLSURFACE);
-	ExtFloodFill(CMetafileManager::mdc, correctedX, correctedY, GetPixel(CMetafileManager::mdc, correctedX, correctedY), FLOODFILLSURFACE);
 }
 
 
-CPaintConfig::~CPaintConfig()
+CPaintManager::~CPaintManager()
 {
 }
