@@ -1,28 +1,31 @@
 #include "stdafx.h"
 #include "WindowConfig.h"
 
-int CWindowConfig::hight = 500;
-int CWindowConfig::width = 1000;
-int CWindowConfig::hightClock = 200;
-int CWindowConfig::widthClock = 200;
-double CWindowConfig::scale = 1;
-POINT CWindowConfig::movingPoint;
+int CWindowStatus::hight = 500;
+int CWindowStatus::width = 1000;
+int CWindowStatus::hightClock = 200;
+int CWindowStatus::widthClock = 200;
+double CWindowStatus::scale = 1;
+POINT CWindowStatus::movingPoint;
+bool CWindowStatus::isMoving = false;
+bool CWindowStatus::isScaling = false;
+bool CWindowStatus::isDrawing = false;
 
-CWindowConfig::CWindowConfig()
+CWindowStatus::CWindowStatus()
 {
 }
 
-bool CWindowConfig::IsScalingPossible(int mouseDirection)
+bool CWindowStatus::IsScalingPossible(int mouseDirection)
 {
 	bool result = true;
-	if ((mouseDirection < 0) && ((movingPoint.x + movingPoint.y) != 0) && (CWindowConfig::scale <= 1))
+	if ((mouseDirection < 0) && ((movingPoint.x + movingPoint.y) != 0) && (CWindowStatus::scale <= 1))
 		result = false;
 	return result;
 }
 
 
 
-bool CWindowConfig::IsMovingPossible()
+bool CWindowStatus::IsMovingPossible()
 {
 	bool result = true;
 	if (scale < 1)
@@ -31,6 +34,6 @@ bool CWindowConfig::IsMovingPossible()
 }
 
 
-CWindowConfig::~CWindowConfig()
+CWindowStatus::~CWindowStatus()
 {
 }

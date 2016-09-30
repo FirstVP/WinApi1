@@ -36,8 +36,8 @@ void CTextManager::UpdateCaret(HWND hWnd, HDC hdc)
 	SIZE size;
 	GetTextSize(hdc, &size, position);
 	DestroyCaret();
-	CreateCaret(hWnd, (HBITMAP)1, 0, charHeight*CWindowConfig::scale);
-	SetCaretPos( (x - CWindowConfig::movingPoint.x) * CWindowConfig::scale + size.cx, (y - CWindowConfig::movingPoint.y) * CWindowConfig::scale);
+	CreateCaret(hWnd, (HBITMAP)1, 0, charHeight*CWindowStatus::scale);
+	SetCaretPos( (x - CWindowStatus::movingPoint.x) * CWindowStatus::scale + size.cx, (y - CWindowStatus::movingPoint.y) * CWindowStatus::scale);
 	ShowCaret(hWnd);	
 }
 
@@ -94,8 +94,8 @@ void CTextManager::OutText(HDC hdc)
 	SIZE size;
 	GetTextSize(hdc, &size, buffer.length());
 	RECT rc;
-	SetRect(&rc, (x - CWindowConfig::movingPoint.x)*CWindowConfig::scale, (y - CWindowConfig::movingPoint.y)*CWindowConfig::scale,
-		(x - CWindowConfig::movingPoint.x)*CWindowConfig::scale + size.cx, (y - CWindowConfig::movingPoint.y)*CWindowConfig::scale+ size.cy);
+	SetRect(&rc, (x - CWindowStatus::movingPoint.x)*CWindowStatus::scale, (y - CWindowStatus::movingPoint.y)*CWindowStatus::scale,
+		(x - CWindowStatus::movingPoint.x)*CWindowStatus::scale + size.cx, (y - CWindowStatus::movingPoint.y)*CWindowStatus::scale+ size.cy);
 	wchar_t* text = const_cast<wchar_t*>(buffer.c_str());
 
 	HFONT hFont = CreateFont(charHeight, 0, 0, 0, 0, TRUE, 0, 0, 0, 0, 0, 0, 0, L"Times New Roman");

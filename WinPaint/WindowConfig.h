@@ -1,5 +1,5 @@
 #pragma once
-class CWindowConfig
+class CWindowStatus
 {
 public:
 	static int width;
@@ -8,8 +8,11 @@ public:
 	static int hightClock;
 	static double scale;
 	static POINT movingPoint;
-	CWindowConfig();
+	static bool isMoving;
+	static bool isScaling;
+	static bool isDrawing;
+	CWindowStatus();
 	static bool IsScalingPossible(int mouseDirection);
 	static bool IsMovingPossible();
-	~CWindowConfig();
+	~CWindowStatus();
 };
