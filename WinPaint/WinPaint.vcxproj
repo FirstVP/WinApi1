@@ -144,8 +144,10 @@
     <ClInclude Include="Clock.h" />
     <ClInclude Include="EllipseDrawer.h" />
     <ClInclude Include="LineDrawer.h" />
+    <ClInclude Include="MainWindowController.h" />
     <ClInclude Include="MetafileManager.h" />
     <ClInclude Include="PaintConfig.h" />
+    <ClInclude Include="PencilDrawer.h" />
     <ClInclude Include="PolygonDrawer.h" />
     <ClInclude Include="PrimitiveDrawer.h" />
     <ClInclude Include="PrintRectangleDrawer.h" />
@@ -164,8 +166,10 @@
     <ClCompile Include="Clock.cpp" />
     <ClCompile Include="EllipseDrawer.cpp" />
     <ClCompile Include="LineDrawer.cpp" />
+    <ClCompile Include="MainWindowController.cpp" />
     <ClCompile Include="MetafileManager.cpp" />
     <ClCompile Include="PaintConfig.cpp" />
+    <ClCompile Include="PencilDrawer.cpp" />
     <ClCompile Include="PolygonDrawer.cpp" />
     <ClCompile Include="PrimitiveDrawer.cpp" />
     <ClCompile Include="PrintRectangleDrawer.cpp" />

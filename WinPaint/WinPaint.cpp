@@ -12,9 +12,11 @@
 #include "TextManager.h"
 #include "Clock.h"
 #include "PolygonDrawer.h"
+#include "PencilDrawer.h"
 #include "MetafileManager.h"
 #include "PrintRectangleDrawer.h"
 #include "WinPaint.h"
+#include "MainWindowController.h"
 
 
 HINSTANCE hInst;                                
@@ -33,12 +35,7 @@ CMetafileManager* metafileManager = new CMetafileManager();
 CClock* clock = new CClock();
 CPolygonDrawer* polygonDrawer = new CPolygonDrawer();
 CPrintRectangleDrawer* printDrawer = new CPrintRectangleDrawer();
-
-bool isPencil;
-
-
-int xPencil = 0;
-int yPencil = 0;
+CPencilDrawer* pencilDrawer = new CPencilDrawer();
 
 ATOM                RegisterClass(HINSTANCE hInstance);
 ATOM                RegisterClassClock(HINSTANCE hInstance);
@@ -196,7 +193,7 @@ void InitializeWindow(HWND hWnd)
 	CPolygonDrawer::status = POLYGON_NO;
 	CWindowStatus::isMoving = false;
 	CWindowStatus::isScaling = false;
-	isPencil = false;
+	CPencilDrawer::status = false;
 	CWindowStatus::movingPoint.x = 0;
 	CWindowStatus::movingPoint.y = 0;
 }
@@ -226,18 +223,7 @@ int ShowPrintDialog(int x, int y, int a, int b)
 	return 0;
 }
 
-int CreateNewLayer(HWND hWnd, HDC* newDC, HBITMAP* newBmp, int width, int hight)
-{
-	HDC hdc = GetDC(hWnd);
-	*newDC = CreateCompatibleDC(hdc);
-	*newBmp = CreateCompatibleBitmap(hdc, width, hight);
-	SelectObject(*newDC, *newBmp);
-	HPEN printPen = CreatePen(PS_SOLID, 5, RGB(0, 0, 0));
-	SelectObject(*newDC, printPen);
-	Rectangle(*newDC, -1, -1, width + 1, hight + 1);
-	ReleaseDC(hWnd, hdc);
-	return 0;
-}
+
 
 void OpenColorDialog(HWND hWnd, bool isBrush)
 {
@@ -316,7 +302,20 @@ void ShowOpenDialog(HWND hWnd)
 	}
 }
 
-void InitializeTextConfiguration(HDC hdc)
+int CreateNewLayer(HWND hWnd, HDC* newDC, HBITMAP* newBmp, int width, int hight)
+{
+	HDC hdc = GetDC(hWnd);
+	*newDC = CreateCompatibleDC(hdc);
+	*newBmp = CreateCompatibleBitmap(hdc, width, hight);
+	SelectObject(*newDC, *newBmp);
+	HPEN printPen = CreatePen(PS_SOLID, 5, RGB(0, 0, 0));
+	SelectObject(*newDC, printPen);
+	Rectangle(*newDC, -1, -1, width + 1, hight + 1);
+	ReleaseDC(hWnd, hdc);
+	return 0;
+}
+
+void InitializeTextConfiguration(HDC hdc, CTextManager* textManager)
 {
 	textManager->Initialize(hdc);
 	textManager->Initialize(CMetafileManager::mdc);
@@ -328,14 +327,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
 	case WM_CREATE:
 	    {
-		    HBITMAP memoryBitmap, secondMemoryBitmap;
-			InitializeWindow(hWnd);
-			InitializePath();
-			CreateNewLayer(hWnd, &memory, &memoryBitmap, CWindowStatus::width, CWindowStatus::hight);
-			CreateNewLayer(hWnd, &secondMemory, &secondMemoryBitmap, CWindowStatus::width, CWindowStatus::hight);
-			metafileManager->CreateMetafileContext(hWnd, GetDC(hWnd), TEMPORARY_METAFILE_PATH);
-			CPaintManager::ChooseThickness(THIN_LINE);
-			InitializeTextConfiguration(memory);
+		//CMainWindowController::OnCreate(hWnd, memory, secondMemory, szTempFilePath, metafileManager, textManager);
+		HBITMAP memoryBitmap, secondMemoryBitmap;
+	InitializeWindow(hWnd);
+	InitializePath();
+	CreateNewLayer(hWnd, &memory, &memoryBitmap, CWindowStatus::width, CWindowStatus::hight);
+	CreateNewLayer(hWnd, &secondMemory, &secondMemoryBitmap, CWindowStatus::width, CWindowStatus::hight);
+	CPaintManager::ChooseThickness(THIN_LINE);
+	InitializeTextConfiguration(memory, textManager);
 		}
 		break;
 	case WM_KEYDOWN:
@@ -433,7 +432,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				textManager->DeleteInput();
 				CPrintRectangleDrawer::status = PRINT_NO;
 				CPolygonDrawer::status = POLYGON_BEGIN;
-				isPencil = false;
+				CPencilDrawer::status = false;
 				break;
 			}
 			case ID_TOOLS_PENCIL:
@@ -441,7 +440,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				textManager->DeleteInput();
 				CPrintRectangleDrawer::status = PRINT_NO;
 				CPolygonDrawer::status = POLYGON_NO;
-				isPencil = true;
+				CPencilDrawer::status = true;
 				break;
 			}			
 			case ID_TOOLS_LINE:
@@ -450,7 +449,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				textManager->DeleteInput();
 				CPrintRectangleDrawer::status = PRINT_NO;
 				CPolygonDrawer::status = POLYGON_NO;
-				isPencil = false;
+				CPencilDrawer::status = false;
 				break;
 			}							
 			case ID_TOOLS_TRIANGLE:
@@ -459,7 +458,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				textManager->DeleteInput();
 				CPrintRectangleDrawer::status = PRINT_NO;
 				CPolygonDrawer::status = POLYGON_NO;
-				isPencil = false;
+				CPencilDrawer::status = false;
 				break;
 			}								
 			case ID_TOOLS_ELLIPSE:
@@ -468,7 +467,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				textManager->DeleteInput();
 				CPrintRectangleDrawer::status = PRINT_NO;
 				CPolygonDrawer::status = POLYGON_NO;
-				isPencil = false;
+				CPencilDrawer::status = false;
 				break;
 			}						
 			case ID_TOOLS_RECTANGLE:
@@ -477,7 +476,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				textManager->DeleteInput();
 				CPrintRectangleDrawer::status = PRINT_NO;
 				CPolygonDrawer::status = POLYGON_NO;
-				isPencil = false;
+				CPencilDrawer::status = false;
 				break;
 			}					
 			case ID_TOOLS_TEXT:
@@ -486,7 +485,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				textManager->SetStatus(TEXT_PLACED);
 				CPrintRectangleDrawer::status = PRINT_NO;
 				CPolygonDrawer::status = POLYGON_NO;
-				isPencil = false;
+				CPencilDrawer::status = false;
 			}
 			case ID_LINESETTINGS_THIN:
 				CPaintManager::ChooseThickness(THIN_LINE);
@@ -506,7 +505,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				BringWindowToTop(clockWindow);
 				break;
 			case IDM_PRINT:
-				isPencil = false;
+				CPencilDrawer::status = false;
 				textManager->DeleteInput();
 				CPrintRectangleDrawer::status = PRINT_NO;
 				CPolygonDrawer::status = POLYGON_NO;
@@ -546,7 +545,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			CLineDrawer lineDrawer;
 			lineDrawer.Draw(memory, (polygonDrawer->checkedPoint.x - CWindowStatus::movingPoint.x) * CWindowStatus::scale, (polygonDrawer->checkedPoint.y- CWindowStatus::movingPoint.y) * CWindowStatus::scale, a, b);
 		}
-		if ((isPencil) && ((GetKeyState(VK_LBUTTON) & 0x100) != 0))
+		if ((CPencilDrawer::status) && ((GetKeyState(VK_LBUTTON) & 0x100) != 0))
 		{
 			CWindowStatus::isDrawing = false;
 			int a = LOWORD(lParam);
@@ -555,18 +554,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			HPEN pen = CreatePen(PS_SOLID, 5, CPaintManager::color);
 			SelectObject(memory, pen);
 			SelectObject(CMetafileManager::mdc, pen);
-			if (!((xPencil == 0) && (yPencil == 0)))
+			if (!((pencilDrawer->checkedPoint.x == 0) && (pencilDrawer->checkedPoint.y == 0)))
 			{
-				lineDrawer.Draw(memory, xPencil, yPencil, a, b);
-				lineDrawer.Draw(CMetafileManager::mdc, xPencil, yPencil, a, b);
+				lineDrawer.Draw(memory, pencilDrawer->checkedPoint.x, pencilDrawer->checkedPoint.y, a, b);
+				lineDrawer.Draw(CMetafileManager::mdc, pencilDrawer->checkedPoint.x, pencilDrawer->checkedPoint.y, a, b);
 			}				
 			else
 			{
 				lineDrawer.Draw(memory, a, b, a + 1, b + 1);
 				lineDrawer.Draw(CMetafileManager::mdc, a, b, a + 1, b + 1);
 			}			
-			xPencil = a;
-			yPencil = b;
+			pencilDrawer->checkedPoint.x = a;
+			pencilDrawer->checkedPoint.y = b;
 
 		}
 		if (true == CWindowStatus::isDrawing)
@@ -654,10 +653,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 		int a = LOWORD(lParam);
 		int b = HIWORD(lParam);
-		if (isPencil > 0)
+		if (CPencilDrawer::status > 0)
 		{
-			xPencil = 0;
-			yPencil = 0;
+			pencilDrawer->checkedPoint.x = 0;
+			pencilDrawer->checkedPoint.y = 0;
 		}
 		if (CPrintRectangleDrawer::status == PRINT_SELECTING)
 		{					
@@ -745,7 +744,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 
 
-			if (textManager->GetStatus() + CPolygonDrawer::status+ int(isPencil) + CPrintRectangleDrawer::status + int(CWindowStatus::isDrawing))
+			if (textManager->GetStatus() + CPolygonDrawer::status+ int(CPencilDrawer::status) + CPrintRectangleDrawer::status + int(CWindowStatus::isDrawing))
 				ShowWindow(clockWindow, SW_HIDE); 
 			else
 				
